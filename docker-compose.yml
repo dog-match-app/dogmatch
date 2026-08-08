@@ -1,0 +1,115 @@
+name: dogmatch
+
+services:
+  db:
+    image: postgis/postgis:16-3.4
+    container_name: dogmatch-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-dogmatch}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-dogmatch}
+      POSTGRES_DB: ${POSTGRES_DB:-dogmatch}
+    ports:
+      - "5432:5432"
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  redis:
+    image: redis:7-alpine
+    container_name: dogmatch-redis
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+
+  minio:
+    image: minio/minio:latest
+    container_name: dogmatch-minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-dogmatch}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-dogmatch123}
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  # Cria o bucket de mídia com leitura pública (roda uma vez e sai)
+  minio-setup:
+    image: minio/mc
+    container_name: dogmatch-minio-setup
+    depends_on:
+      minio:
+        condition: service_healthy
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-dogmatch}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-dogmatch123}
+    entrypoint: >
+      /bin/sh -c "
+      mc alias set local http://minio:9000 $${MINIO_ROOT_USER} $${MINIO_ROOT_PASSWORD} &&
+      mc mb --ignore-existing local/dogmatch-media &&
+      mc anonymous set download local/dogmatch-media &&
+      echo 'bucket dogmatch-media pronto'
+      "
+
+  # API containerizada — opcional em dev (perfil "api"); no dia a dia rode
+  # `npm run start:dev` dentro de backend/. Atenção: com a API no container,
+  # as presigned URLs apontam para http://minio:9000 (só visíveis de dentro
+  # da rede docker) — para testar upload de um device/emulador, rode a API
+  # no host e ajuste S3_ENDPOINT (ver ARCHITECTURE.md §7.1).
+  api:
+    build: ./backend
+    container_name: dogmatch-api
+    profiles: ["api"]
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      DATABASE_URL: postgresql://${POSTGRES_USER:-dogmatch}:${POSTGRES_PASSWORD:-dogmatch}@db:5432/${POSTGRES_DB:-dogmatch}?schema=public
+      REDIS_URL: redis://redis:6379
+      S3_ENDPOINT: http://minio:9000
+      S3_REGION: us-east-1
+      S3_ACCESS_KEY: ${MINIO_ROOT_USER:-dogmatch}
+      S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-dogmatch123}
+      S3_BUCKET: dogmatch-media
+      S3_PUBLIC_URL: http://localhost:9000/dogmatch-media
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:-dev-access-secret-change-me}
+      JWT_ACCESS_TTL: 15m
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-dev-refresh-secret-change-me}
+      JWT_REFRESH_TTL: 30d
+      CORS_ORIGINS: "*"
+      THROTTLE_TTL: 60000
+      THROTTLE_LIMIT: 100
+    ports:
+      - "3000:3000"
+
+volumes:
+  db_data:
+  redis_data:
+  minio_data:

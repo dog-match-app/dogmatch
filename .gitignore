@@ -1,0 +1,10 @@
+# Ambiente
+.env
+.env.local
+
+# Logs / SO
+*.log
+.DS_Store
+
+# Dependências (raiz — subprojetos têm os próprios .gitignore)
+node_modules/
