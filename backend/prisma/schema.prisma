@@ -1,0 +1,152 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum DogSex {
+  MALE
+  FEMALE
+}
+
+enum DogSize {
+  SMALL
+  MEDIUM
+  LARGE
+  GIANT
+}
+
+enum DogIntent {
+  BREEDING
+  FRIENDSHIP
+  BOTH
+}
+
+enum SwipeAction {
+  LIKE
+  PASS
+}
+
+model User {
+  id           String   @id @default(uuid()) @db.Uuid
+  email        String   @unique
+  passwordHash String   @map("password_hash")
+  name         String
+  phone        String?
+  bio          String?
+  avatarUrl    String?  @map("avatar_url")
+  city         String?
+  latitude     Float?
+  longitude    Float?
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  dogs          Dog[]
+  refreshTokens RefreshToken[]
+  messages      Message[]
+
+  @@map("users")
+}
+
+model RefreshToken {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  tokenHash String    @map("token_hash")
+  userAgent String?   @map("user_agent")
+  expiresAt DateTime  @map("expires_at")
+  revokedAt DateTime? @map("revoked_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("refresh_tokens")
+}
+
+model Dog {
+  id        String    @id @default(uuid()) @db.Uuid
+  ownerId   String    @map("owner_id") @db.Uuid
+  name      String
+  breed     String
+  sex       DogSex
+  birthDate DateTime  @map("birth_date")
+  size      DogSize
+  intent    DogIntent
+  bio       String?
+  neutered  Boolean   @default(false)
+  pedigree  Boolean   @default(false)
+  active    Boolean   @default(true)
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+
+  owner          User       @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  photos         DogPhoto[]
+  swipesGiven    Swipe[]    @relation("DogSwipesGiven")
+  swipesReceived Swipe[]    @relation("DogSwipesReceived")
+  matchesAsA     Match[]    @relation("MatchDogA")
+  matchesAsB     Match[]    @relation("MatchDogB")
+
+  @@index([ownerId])
+  @@map("dogs")
+}
+
+model DogPhoto {
+  id        String   @id @default(uuid()) @db.Uuid
+  dogId     String   @map("dog_id") @db.Uuid
+  key       String
+  url       String
+  position  Int      @default(0)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  dog Dog @relation(fields: [dogId], references: [id], onDelete: Cascade)
+
+  @@index([dogId])
+  @@map("dog_photos")
+}
+
+model Swipe {
+  id          String      @id @default(uuid()) @db.Uuid
+  swiperDogId String      @map("swiper_dog_id") @db.Uuid
+  targetDogId String      @map("target_dog_id") @db.Uuid
+  action      SwipeAction
+  createdAt   DateTime    @default(now()) @map("created_at")
+
+  swiperDog Dog @relation("DogSwipesGiven", fields: [swiperDogId], references: [id], onDelete: Cascade)
+  targetDog Dog @relation("DogSwipesReceived", fields: [targetDogId], references: [id], onDelete: Cascade)
+
+  @@unique([swiperDogId, targetDogId])
+  @@index([targetDogId])
+  @@map("swipes")
+}
+
+model Match {
+  id        String   @id @default(uuid()) @db.Uuid
+  dogAId    String   @map("dog_a_id") @db.Uuid
+  dogBId    String   @map("dog_b_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at")
+
+  dogA     Dog       @relation("MatchDogA", fields: [dogAId], references: [id], onDelete: Cascade)
+  dogB     Dog       @relation("MatchDogB", fields: [dogBId], references: [id], onDelete: Cascade)
+  messages Message[]
+
+  @@unique([dogAId, dogBId])
+  @@map("matches")
+}
+
+model Message {
+  id        String    @id @default(uuid()) @db.Uuid
+  matchId   String    @map("match_id") @db.Uuid
+  senderId  String    @map("sender_id") @db.Uuid
+  content   String
+  createdAt DateTime  @default(now()) @map("created_at")
+  readAt    DateTime? @map("read_at")
+
+  match  Match @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  sender User  @relation(fields: [senderId], references: [id], onDelete: Cascade)
+
+  @@index([matchId, createdAt])
+  @@map("messages")
+}
