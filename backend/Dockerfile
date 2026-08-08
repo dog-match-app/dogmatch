@@ -25,4 +25,5 @@ COPY --from=build /app/node_modules/.prisma ./node_modules/.prisma
 COPY --from=build /app/node_modules/@prisma/client ./node_modules/@prisma/client
 COPY --from=build /app/dist ./dist
 EXPOSE 3000
-CMD ["node", "dist/main.js"]
+# migrate deploy no boot: idempotente; exige a CLI do prisma em dependencies
+CMD ["sh", "-c", "npx prisma migrate deploy && node dist/main.js"]
