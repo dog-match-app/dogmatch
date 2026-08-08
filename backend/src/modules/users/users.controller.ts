@@ -1,7 +1,20 @@
-import { Body, Controller, Get, Patch } from '@nestjs/common';
-import { ApiBearerAuth, ApiOkResponse, ApiTags } from '@nestjs/swagger';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  ParseUUIDPipe,
+  Patch,
+} from '@nestjs/common';
+import {
+  ApiBearerAuth,
+  ApiNotFoundResponse,
+  ApiOkResponse,
+  ApiTags,
+} from '@nestjs/swagger';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { AuthUser } from '../../common/decorators/current-user.decorator';
+import { OwnerProfileDto } from './dto/owner-profile.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UserDto } from './dto/user.dto';
 import { UsersService } from './users.service';
@@ -25,5 +38,15 @@ export class UsersController {
     @Body() dto: UpdateUserDto,
   ): Promise<UserDto> {
     return this.usersService.updateMe(user.id, dto);
+  }
+
+  @Get(':id/profile')
+  @ApiOkResponse({ type: OwnerProfileDto })
+  @ApiNotFoundResponse({ description: 'User not found' })
+  ownerProfile(
+    @CurrentUser() user: AuthUser,
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<OwnerProfileDto> {
+    return this.usersService.getOwnerProfile(user.id, id);
   }
 }
