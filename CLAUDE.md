@@ -34,11 +34,33 @@ Os lados nunca podem divergir do documento.
   `make push-apk` e instalação manual pelo gerenciador de arquivos (mobile/README.md).
 - Node 24 · Docker Compose v5 · infra local nos containers `dogmatch-db|redis|minio`.
 
+## Commits (Conventional Commits — estrito)
+
+Commits são criados pelo Claude a cada feature/entrega concluída e validada
+(autorizado pelo Rodrigo em 2026-08-08). `git push` apenas com pedido explícito.
+
+Formato obrigatório: `tipo(escopo): descrição`
+
+- **Tipos**: `feat`, `fix`, `refactor`, `perf`, `test`, `docs`, `chore`, `ci`, `build`.
+- **Escopo obrigatório** quando o commit toca um único lado: `backend`, `mobile` ou
+  `infra`. Sem escopo somente para mudanças da raiz/atravessadas e para `docs`.
+- **Descrição**: pt-br (acentos ok), minúsculas, verbo no imperativo, sem ponto
+  final, ≤ 72 caracteres. Nada de sufixos entre parênteses no lugar do escopo.
+- **Corpo** (opcional): bullets `-` com o quê/por quê.
+- **Um commit por mudança lógica** — backend e mobile da mesma feature são commits
+  separados, cada um com seu escopo.
+- **Breaking change** de contrato: `tipo(escopo)!: ...` + rodapé `BREAKING CHANGE: ...`.
+- **Rodapé sempre**: `Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>`.
+
+Exemplos válidos: `feat(backend): perfil público do dono` ·
+`fix(mobile): máscara de data aceita ano bissexto` · `docs: contrato de denúncias`.
+
 ## Convenções gerais
 
-- Commits: Conventional Commits — `feat|fix|refactor|chore|docs(escopo): descrição`;
-  escopos: `backend`, `mobile`, `infra`, `docs`.
 - Documentação em PT-BR; código, identificadores e mensagens de erro da API em inglês;
   strings de UI do app em PT-BR.
 - Definition of done de qualquer tarefa: backend `lint + test + build` verdes;
   mobile `build_runner + analyze (zero issues) + test` verdes — o CI cobra exatamente isso.
+- UI nunca pressupõe conhecimento interno do app: rótulos autoexplicativos (nada de
+  "Ambos" solto), tags/valores sempre com indicador da categoria a que pertencem, e
+  inputs que aceitam digitação além de pickers (ex.: data com máscara + calendário).

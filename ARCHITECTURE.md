@@ -251,6 +251,11 @@ MatchDto       { id, createdAt, myDog: DogDto, otherDog: DogDto,
                  otherOwner: { id, name, avatarUrl? }, lastMessage?: MessageDto }
 MessageDto     { id, matchId, senderId, content, createdAt, readAt? }
 PresignedUploadDto { uploadUrl, publicUrl, key, expiresIn }
+OwnerProfileDto { id, name, bio?, avatarUrl?, city?, memberSince,
+                  distanceKm?: number|null,
+                  stats: { dogs: number, matches: number },
+                  dogs: DogDto[] }   // perfil público: NUNCA expõe email,
+                                     // telefone ou coordenadas
 ```
 
 ### Endpoints
@@ -263,6 +268,7 @@ PresignedUploadDto { uploadUrl, publicUrl, key, expiresIn }
 | POST | `/auth/logout` | ✔ | `{ refreshToken }` | 204 |
 | GET | `/users/me` | ✔ | — | `UserDto` (inclui `dogs`) |
 | PATCH | `/users/me` | ✔ | `{ name?, bio?, phone?, city?, latitude?, longitude?, avatarUrl? }` | `UserDto` |
+| GET | `/users/:id/profile` | ✔ | — | `OwnerProfileDto` (cães ativos; `distanceKm` se ambos têm localização; `stats.matches` = matches dos cães do dono) |
 | POST | `/files/presigned-upload` | ✔ | `{ contentType, folder: 'avatars'\|'dogs' }` | `PresignedUploadDto` |
 | GET | `/dogs/mine` | ✔ | — | `DogDto[]` |
 | POST | `/dogs` | ✔ | `{ name, breed, sex, birthDate, size, intent, bio?, neutered?, pedigree? }` | 201 `DogDto` |
