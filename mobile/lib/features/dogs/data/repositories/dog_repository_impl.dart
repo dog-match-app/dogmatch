@@ -4,6 +4,7 @@ import 'package:dio/dio.dart';
 import 'package:dogmatch/core/error/api_exception.dart';
 import 'package:dogmatch/core/network/file_uploader.dart';
 import 'package:dogmatch/features/dogs/data/models/dog_model.dart';
+import 'package:dogmatch/features/dogs/data/models/dog_social_model.dart';
 import 'package:dogmatch/features/dogs/domain/entities/dog_enums.dart';
 import 'package:dogmatch/features/dogs/domain/repositories/dog_repository.dart';
 import 'package:injectable/injectable.dart';
@@ -44,6 +45,7 @@ class DogRepositoryImpl implements DogRepository {
     String? bio,
     bool neutered = false,
     bool pedigree = false,
+    DogSocialModel? social,
   }) {
     return guardApi(() async {
       final response = await _dio.post<Map<String, dynamic>>(
@@ -58,6 +60,7 @@ class DogRepositoryImpl implements DogRepository {
           if (bio != null && bio.isNotEmpty) 'bio': bio,
           'neutered': neutered,
           'pedigree': pedigree,
+          'social': ?social?.toJson(),
         },
       );
       return DogModel.fromJson(response.data!);
@@ -76,6 +79,7 @@ class DogRepositoryImpl implements DogRepository {
     String? bio,
     bool? neutered,
     bool? pedigree,
+    DogSocialModel? social,
   }) {
     return guardApi(() async {
       final response = await _dio.patch<Map<String, dynamic>>(
@@ -90,6 +94,8 @@ class DogRepositoryImpl implements DogRepository {
           'bio': ?bio,
           'neutered': ?neutered,
           'pedigree': ?pedigree,
+          // Objeto completo: chaves nulas limpam a rede correspondente.
+          'social': ?social?.toJson(),
         },
       );
       return DogModel.fromJson(response.data!);

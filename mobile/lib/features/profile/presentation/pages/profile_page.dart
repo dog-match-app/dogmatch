@@ -294,10 +294,24 @@ class _ProfileViewState extends State<_ProfileView> {
                             subtitle: Text(
                               '${dog.breed} · ${dog.sex.labelPtBr}',
                             ),
-                            trailing: IconButton(
-                              tooltip: 'Editar',
-                              icon: const Icon(Icons.edit_outlined),
-                              onPressed: () => _openDogForm(dog: dog),
+                            trailing: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                IconButton(
+                                  tooltip: 'Página do cão (posts)',
+                                  icon:
+                                      const Icon(Icons.auto_stories_outlined),
+                                  onPressed: () => context.push(
+                                    '/dogs/${dog.id}/posts',
+                                    extra: dog,
+                                  ),
+                                ),
+                                IconButton(
+                                  tooltip: 'Editar',
+                                  icon: const Icon(Icons.edit_outlined),
+                                  onPressed: () => _openDogForm(dog: dog),
+                                ),
+                              ],
                             ),
                           ),
                         ),

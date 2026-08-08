@@ -1,5 +1,6 @@
 import 'package:dogmatch/features/dogs/data/models/dog_owner_model.dart';
 import 'package:dogmatch/features/dogs/data/models/dog_photo_model.dart';
+import 'package:dogmatch/features/dogs/data/models/dog_social_model.dart';
 import 'package:dogmatch/features/dogs/domain/entities/dog_enums.dart';
 import 'package:equatable/equatable.dart';
 import 'package:json_annotation/json_annotation.dart';
@@ -23,6 +24,7 @@ class DogModel extends Equatable {
     this.pedigree = false,
     this.active = true,
     this.photos = const [],
+    this.social,
     required this.createdAt,
     this.owner,
   });
@@ -43,6 +45,10 @@ class DogModel extends Equatable {
   final bool pedigree;
   final bool active;
   final List<DogPhotoModel> photos;
+
+  /// Redes sociais do cão (`DogDto.social`, §3.5.3); pode vir ausente.
+  final DogSocialModel? social;
+
   final DateTime createdAt;
 
   /// Presente apenas em `GET /dogs/:id` (o endpoint inclui `owner`).
@@ -103,6 +109,7 @@ class DogModel extends Equatable {
         pedigree,
         active,
         photos,
+        social,
         createdAt,
         owner,
       ];

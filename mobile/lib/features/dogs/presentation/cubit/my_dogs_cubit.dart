@@ -2,6 +2,7 @@ import 'dart:typed_data';
 
 import 'package:dogmatch/core/error/api_exception.dart';
 import 'package:dogmatch/features/dogs/data/models/dog_model.dart';
+import 'package:dogmatch/features/dogs/data/models/dog_social_model.dart';
 import 'package:dogmatch/features/dogs/domain/entities/dog_enums.dart';
 import 'package:dogmatch/features/dogs/domain/repositories/dog_repository.dart';
 import 'package:equatable/equatable.dart';
@@ -63,6 +64,7 @@ class MyDogsCubit extends Cubit<MyDogsState> {
     String? bio,
     required bool neutered,
     required bool pedigree,
+    DogSocialModel? social,
   }) async {
     emit(state.copyWith(saving: true));
     try {
@@ -76,6 +78,7 @@ class MyDogsCubit extends Cubit<MyDogsState> {
         bio: bio,
         neutered: neutered,
         pedigree: pedigree,
+        social: social,
       );
       emit(
         state.copyWith(
@@ -102,6 +105,7 @@ class MyDogsCubit extends Cubit<MyDogsState> {
     String? bio,
     required bool neutered,
     required bool pedigree,
+    DogSocialModel? social,
   }) async {
     emit(state.copyWith(saving: true));
     try {
@@ -116,6 +120,7 @@ class MyDogsCubit extends Cubit<MyDogsState> {
         bio: bio,
         neutered: neutered,
         pedigree: pedigree,
+        social: social,
       );
       emit(
         state.copyWith(

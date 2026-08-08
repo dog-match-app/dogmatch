@@ -24,6 +24,9 @@ DogModel _$DogModelFromJson(Map<String, dynamic> json) => DogModel(
           ?.map((e) => DogPhotoModel.fromJson(e as Map<String, dynamic>))
           .toList() ??
       const [],
+  social: json['social'] == null
+      ? null
+      : DogSocialModel.fromJson(json['social'] as Map<String, dynamic>),
   createdAt: DateTime.parse(json['createdAt'] as String),
   owner: json['owner'] == null
       ? null
@@ -44,6 +47,7 @@ Map<String, dynamic> _$DogModelToJson(DogModel instance) => <String, dynamic>{
   'pedigree': instance.pedigree,
   'active': instance.active,
   'photos': instance.photos.map((e) => e.toJson()).toList(),
+  'social': ?instance.social?.toJson(),
   'createdAt': instance.createdAt.toIso8601String(),
   'owner': ?instance.owner?.toJson(),
 };

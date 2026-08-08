@@ -7,6 +7,9 @@ import 'package:dogmatch/features/discovery/domain/entities/swipe_action.dart';
 import 'package:dogmatch/features/discovery/presentation/widgets/match_dialog.dart';
 import 'package:dogmatch/features/dogs/data/models/dog_model.dart';
 import 'package:dogmatch/features/dogs/data/models/dog_photo_model.dart';
+import 'package:dogmatch/features/dogs/presentation/cubit/dog_posts_cubit.dart';
+import 'package:dogmatch/features/dogs/presentation/widgets/dog_post_card.dart';
+import 'package:dogmatch/features/dogs/presentation/widgets/dog_social_pills.dart';
 import 'package:dogmatch/features/search/data/models/search_card_model.dart';
 import 'package:dogmatch/features/search/presentation/cubit/dog_detail_cubit.dart';
 import 'package:dogmatch/features/search/presentation/pages/photo_viewer_page.dart';
@@ -15,8 +18,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 
-/// Detalhe de um cão da busca (`/search/dogs/:id`). Recebe o
-/// [SearchCardModel] via extra; sem extra, busca `GET /dogs/:id`.
+/// Detalhe de um cão da busca (`/search/dogs/:id`), com abas
+/// "Perfil" | "Posts" (página do cão). Recebe o [SearchCardModel] via extra;
+/// sem extra, busca `GET /dogs/:id`.
 class DogDetailPage extends StatelessWidget {
   const DogDetailPage({super.key, required this.dogId, this.card});
 
@@ -25,8 +29,13 @@ class DogDetailPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return BlocProvider(
-      create: (_) => getIt<DogDetailCubit>()..init(dogId: dogId, card: card),
+    return MultiBlocProvider(
+      providers: [
+        BlocProvider(
+          create: (_) => getIt<DogDetailCubit>()..init(dogId: dogId, card: card),
+        ),
+        BlocProvider(create: (_) => getIt<DogPostsCubit>()..load(dogId)),
+      ],
       child: _DogDetailView(dogId: dogId, initialCard: card),
     );
   }
@@ -40,7 +49,6 @@ class _DogDetailView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     return BlocConsumer<DogDetailCubit, DogDetailState>(
       listener: (context, state) async {
         final cubit = context.read<DogDetailCubit>();
@@ -88,77 +96,159 @@ class _DogDetailView extends StatelessWidget {
           case DogDetailStatus.success:
             final card = state.card!;
             final dog = card.dog;
-            return Scaffold(
-              appBar: AppBar(title: Text(dog.name)),
-              body: SingleChildScrollView(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+            return DefaultTabController(
+              length: 2,
+              child: Scaffold(
+                appBar: AppBar(
+                  title: Text(dog.name),
+                  bottom: const TabBar(
+                    tabs: [Tab(text: 'Perfil'), Tab(text: 'Posts')],
+                  ),
+                ),
+                body: TabBarView(
                   children: [
-                    _PhotoCarousel(photos: dog.sortedPhotos),
-                    Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Expanded(
-                                child: Text(
-                                  dog.name,
-                                  style: theme.textTheme.headlineMedium
-                                      ?.copyWith(fontWeight: FontWeight.bold),
-                                ),
-                              ),
-                              if (card.isMatched || card.isLiked) ...[
-                                const SizedBox(width: 8),
-                                SearchCardBadge(card: card),
-                              ],
-                            ],
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            dog.breed,
-                            style: theme.textTheme.titleMedium?.copyWith(
-                              color: theme.colorScheme.onSurfaceVariant,
-                            ),
-                          ),
-                          const SizedBox(height: 16),
-                          Text(
-                            'Características',
-                            style: theme.textTheme.titleMedium
-                                ?.copyWith(fontWeight: FontWeight.bold),
-                          ),
-                          const SizedBox(height: 12),
-                          _TraitsGrid(dog: dog),
-                          if (dog.bio != null && dog.bio!.isNotEmpty) ...[
-                            const SizedBox(height: 16),
-                            Text(
-                              'Sobre ${dog.name}',
-                              style: theme.textTheme.titleMedium
-                                  ?.copyWith(fontWeight: FontWeight.bold),
-                            ),
-                            const SizedBox(height: 8),
-                            Text(dog.bio!, style: theme.textTheme.bodyLarge),
-                          ],
-                          const SizedBox(height: 16),
-                          Text(
-                            'Dono',
-                            style: theme.textTheme.titleMedium
-                                ?.copyWith(fontWeight: FontWeight.bold),
-                          ),
-                          const SizedBox(height: 8),
-                          _OwnerCard(card: card),
-                        ],
-                      ),
-                    ),
+                    _ProfileTab(card: card),
+                    _PostsTab(dog: dog),
                   ],
                 ),
+                bottomNavigationBar: SafeArea(
+                  minimum: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                  child: _BottomActions(state: state, dogId: dogId),
+                ),
               ),
-              bottomNavigationBar: SafeArea(
-                minimum: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-                child: _BottomActions(state: state, dogId: dogId),
-              ),
+            );
+        }
+      },
+    );
+  }
+}
+
+/// Aba "Perfil": foto/carousel no topo + características, bio, redes
+/// sociais (pills com as cores das marcas) e dono.
+class _ProfileTab extends StatelessWidget {
+  const _ProfileTab({required this.card});
+
+  final SearchCardModel card;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final dog = card.dog;
+    final social = dog.social;
+    return SingleChildScrollView(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _PhotoCarousel(photos: dog.sortedPhotos),
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Text(
+                        dog.name,
+                        style: theme.textTheme.headlineMedium
+                            ?.copyWith(fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                    if (card.isMatched || card.isLiked) ...[
+                      const SizedBox(width: 8),
+                      SearchCardBadge(card: card),
+                    ],
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  dog.breed,
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  'Características',
+                  style: theme.textTheme.titleMedium
+                      ?.copyWith(fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 12),
+                _TraitsGrid(dog: dog),
+                if (dog.bio != null && dog.bio!.isNotEmpty) ...[
+                  const SizedBox(height: 16),
+                  Text(
+                    'Sobre ${dog.name}',
+                    style: theme.textTheme.titleMedium
+                        ?.copyWith(fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(dog.bio!, style: theme.textTheme.bodyLarge),
+                ],
+                if (social != null && social.hasAny) ...[
+                  const SizedBox(height: 16),
+                  Text(
+                    'Redes sociais',
+                    style: theme.textTheme.titleMedium
+                        ?.copyWith(fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 8),
+                  DogSocialPills(social: social),
+                ],
+                const SizedBox(height: 16),
+                Text(
+                  'Dono',
+                  style: theme.textTheme.titleMedium
+                      ?.copyWith(fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 8),
+                _OwnerCard(card: card),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Aba "Posts": página do cão em `createdAt desc`, com os 4 estados.
+class _PostsTab extends StatelessWidget {
+  const _PostsTab({required this.dog});
+
+  final DogModel dog;
+
+  @override
+  Widget build(BuildContext context) {
+    return BlocBuilder<DogPostsCubit, DogPostsState>(
+      builder: (context, state) {
+        switch (state.status) {
+          case DogPostsStatus.initial:
+          case DogPostsStatus.loading:
+            return const LoadingIndicator();
+          case DogPostsStatus.error:
+            return EmptyState(
+              icon: Icons.error_outline,
+              title: 'Não foi possível carregar os posts',
+              message: state.message,
+              actionLabel: 'Tentar novamente',
+              onAction: () => context.read<DogPostsCubit>().load(dog.id),
+            );
+          case DogPostsStatus.success:
+            if (state.posts.isEmpty) {
+              return EmptyState(
+                icon: Icons.auto_stories_outlined,
+                title: '${dog.name} ainda não tem posts 🐾',
+                message: 'Volte depois para ver as novidades.',
+              );
+            }
+            return ListView.separated(
+              padding: const EdgeInsets.all(16),
+              itemCount: state.posts.length,
+              separatorBuilder: (_, _) => const SizedBox(height: 16),
+              itemBuilder: (context, index) =>
+                  DogPostCard(post: state.posts[index]),
             );
         }
       },

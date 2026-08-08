@@ -6,10 +6,12 @@ import 'package:dogmatch/core/widgets/app_text_field.dart';
 import 'package:dogmatch/core/widgets/loading_indicator.dart';
 import 'package:dogmatch/core/widgets/primary_button.dart';
 import 'package:dogmatch/features/dogs/data/models/dog_model.dart';
+import 'package:dogmatch/features/dogs/data/models/dog_social_model.dart';
 import 'package:dogmatch/features/dogs/domain/entities/dog_enums.dart';
 import 'package:dogmatch/features/dogs/presentation/cubit/my_dogs_cubit.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 
@@ -58,6 +60,10 @@ class _DogFormViewState extends State<_DogFormView> {
   final _breedController = TextEditingController();
   final _birthDateController = TextEditingController();
   final _bioController = TextEditingController();
+  final _whatsappController = TextEditingController();
+  final _instagramController = TextEditingController();
+  final _pinterestController = TextEditingController();
+  final _telegramController = TextEditingController();
   final _imagePicker = ImagePicker();
 
   DogSex _sex = DogSex.male;
@@ -73,6 +79,10 @@ class _DogFormViewState extends State<_DogFormView> {
     _breedController.dispose();
     _birthDateController.dispose();
     _bioController.dispose();
+    _whatsappController.dispose();
+    _instagramController.dispose();
+    _pinterestController.dispose();
+    _telegramController.dispose();
     super.dispose();
   }
 
@@ -83,6 +93,10 @@ class _DogFormViewState extends State<_DogFormView> {
     _breedController.text = dog.breed;
     _birthDateController.text = formatBrDate(dog.birthDate);
     _bioController.text = dog.bio ?? '';
+    _whatsappController.text = dog.social?.whatsapp ?? '';
+    _instagramController.text = dog.social?.instagram ?? '';
+    _pinterestController.text = dog.social?.pinterest ?? '';
+    _telegramController.text = dog.social?.telegram ?? '';
     setState(() {
       _sex = dog.sex;
       _size = dog.size;
@@ -129,6 +143,22 @@ class _DogFormViewState extends State<_DogFormView> {
     return null;
   }
 
+  /// Objeto `social` completo do form: campo vazio vira `null` (no PATCH,
+  /// `null` limpa a rede correspondente).
+  DogSocialModel _buildSocial() {
+    String? clean(TextEditingController controller) {
+      final value = controller.text.trim();
+      return value.isEmpty ? null : value;
+    }
+
+    return DogSocialModel(
+      whatsapp: clean(_whatsappController),
+      instagram: clean(_instagramController),
+      pinterest: clean(_pinterestController),
+      telegram: clean(_telegramController),
+    );
+  }
+
   void _submit(DogModel? editingDog) {
     FocusScope.of(context).unfocus();
     if (!_formKey.currentState!.validate()) return;
@@ -148,6 +178,7 @@ class _DogFormViewState extends State<_DogFormView> {
         bio: bio.isEmpty ? null : bio,
         neutered: _neutered,
         pedigree: _pedigree,
+        social: _buildSocial(),
       );
     } else {
       cubit.update(
@@ -161,6 +192,7 @@ class _DogFormViewState extends State<_DogFormView> {
         bio: bio,
         neutered: _neutered,
         pedigree: _pedigree,
+        social: _buildSocial(),
       );
     }
   }
@@ -280,6 +312,24 @@ class _DogFormViewState extends State<_DogFormView> {
                                   dogId: editingDog.id,
                                   photoId: photoId,
                                 ),
+                      ),
+                      const SizedBox(height: 16),
+                      Card(
+                        margin: EdgeInsets.zero,
+                        clipBehavior: Clip.antiAlias,
+                        child: ListTile(
+                          leading: const Icon(Icons.auto_stories_outlined),
+                          title: const Text('Página do cão (posts)'),
+                          subtitle: Text(
+                            'Monte a página de ${editingDog.name} com até 10 '
+                            'posts',
+                          ),
+                          trailing: const Icon(Icons.chevron_right),
+                          onTap: () => context.push(
+                            '/dogs/${editingDog.id}/posts',
+                            extra: editingDog,
+                          ),
+                        ),
                       ),
                       const SizedBox(height: 24),
                     ],
@@ -405,6 +455,48 @@ class _DogFormViewState extends State<_DogFormView> {
                       contentPadding: EdgeInsets.zero,
                     ),
                     const SizedBox(height: 16),
+                    Text(
+                      'Redes sociais do cão (opcional)',
+                      style: theme.textTheme.titleSmall,
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Aparecem no perfil como botões de contato — pode ser '
+                      'a rede do cão ou a sua.',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    _SocialField(
+                      controller: _whatsappController,
+                      label: 'WhatsApp',
+                      hint: '+55 11 90000-0000',
+                      icon: FontAwesomeIcons.whatsapp,
+                      keyboardType: TextInputType.phone,
+                    ),
+                    const SizedBox(height: 16),
+                    _SocialField(
+                      controller: _instagramController,
+                      label: 'Instagram',
+                      hint: '@usuario ou link',
+                      icon: FontAwesomeIcons.instagram,
+                    ),
+                    const SizedBox(height: 16),
+                    _SocialField(
+                      controller: _pinterestController,
+                      label: 'Pinterest',
+                      hint: '@usuario ou link',
+                      icon: FontAwesomeIcons.pinterest,
+                    ),
+                    const SizedBox(height: 16),
+                    _SocialField(
+                      controller: _telegramController,
+                      label: 'Telegram',
+                      hint: '@usuario ou link',
+                      icon: FontAwesomeIcons.telegram,
+                    ),
+                    const SizedBox(height: 24),
                     PrimaryButton(
                       label: isEditing ? 'Salvar' : 'Cadastrar',
                       loading: state.saving,
@@ -417,6 +509,40 @@ class _DogFormViewState extends State<_DogFormView> {
           ),
         );
       },
+    );
+  }
+}
+
+/// Campo de rede social do cão: valor livre (≤100 — handle, número ou URL,
+/// §3.5.3) com o ícone da marca como prefixo.
+class _SocialField extends StatelessWidget {
+  const _SocialField({
+    required this.controller,
+    required this.label,
+    required this.hint,
+    required this.icon,
+    this.keyboardType,
+  });
+
+  final TextEditingController controller;
+  final String label;
+  final String hint;
+  final FaIconData icon;
+  final TextInputType? keyboardType;
+
+  @override
+  Widget build(BuildContext context) {
+    return TextFormField(
+      controller: controller,
+      keyboardType: keyboardType,
+      maxLength: 100,
+      textInputAction: TextInputAction.next,
+      decoration: InputDecoration(
+        labelText: label,
+        hintText: hint,
+        counterText: '',
+        prefixIcon: FaIcon(icon),
+      ),
     );
   }
 }

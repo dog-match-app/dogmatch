@@ -39,10 +39,18 @@ import 'package:dogmatch/features/discovery/presentation/cubit/active_dog_cubit.
     as _i230;
 import 'package:dogmatch/features/discovery/presentation/cubit/discovery_cubit.dart'
     as _i290;
+import 'package:dogmatch/features/dogs/data/repositories/dog_posts_repository_impl.dart'
+    as _i681;
 import 'package:dogmatch/features/dogs/data/repositories/dog_repository_impl.dart'
     as _i184;
+import 'package:dogmatch/features/dogs/domain/repositories/dog_posts_repository.dart'
+    as _i564;
 import 'package:dogmatch/features/dogs/domain/repositories/dog_repository.dart'
     as _i1052;
+import 'package:dogmatch/features/dogs/presentation/cubit/dog_post_composer_cubit.dart'
+    as _i209;
+import 'package:dogmatch/features/dogs/presentation/cubit/dog_posts_cubit.dart'
+    as _i815;
 import 'package:dogmatch/features/dogs/presentation/cubit/my_dogs_cubit.dart'
     as _i691;
 import 'package:dogmatch/features/matches/data/repositories/match_repository_impl.dart'
@@ -104,11 +112,17 @@ extension GetItInjectableX on _i174.GetIt {
     gh.lazySingleton<_i638.OwnersRepository>(
       () => _i318.OwnersRepositoryImpl(gh<_i361.Dio>()),
     );
+    gh.lazySingleton<_i564.DogPostsRepository>(
+      () => _i681.DogPostsRepositoryImpl(gh<_i361.Dio>()),
+    );
     gh.lazySingleton<_i190.ChatRepository>(
       () => _i454.ChatRepositoryImpl(gh<_i361.Dio>()),
     );
     gh.lazySingleton<_i984.SearchRepository>(
       () => _i687.SearchRepositoryImpl(gh<_i361.Dio>()),
+    );
+    gh.factory<_i815.DogPostsCubit>(
+      () => _i815.DogPostsCubit(gh<_i564.DogPostsRepository>()),
     );
     gh.lazySingleton<_i19.MatchRepository>(
       () => _i491.MatchRepositoryImpl(gh<_i361.Dio>()),
@@ -163,6 +177,12 @@ extension GetItInjectableX on _i174.GetIt {
         gh<_i557.DiscoveryRepository>(),
         gh<_i19.MatchRepository>(),
         gh<_i230.ActiveDogCubit>(),
+      ),
+    );
+    gh.factory<_i209.DogPostComposerCubit>(
+      () => _i209.DogPostComposerCubit(
+        gh<_i564.DogPostsRepository>(),
+        gh<_i416.FileUploader>(),
       ),
     );
     gh.factory<_i623.MatchesCubit>(

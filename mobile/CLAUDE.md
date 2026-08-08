@@ -84,6 +84,19 @@ SDK em `~/development/flutter` (stable), já no PATH. Celular físico: ver `READ
   `dogs`, registrar com `POST /dogs/:id/photos {key}`; criar cão mantém o form aberto
   em modo edição (fotos precisam do id).
 
+### dogs — página do cão (posts)
+- Regras de tipo/limite centralizadas em `domain/entities/dog_post_rules.dart`
+  (10 posts, texto 2000, legenda 200, 5 legendas/img, carrossel 2..8) — espelham o
+  §3.5.2; mudou lá, muda aqui.
+- Texto formatado SEMPRE via `TelegramText` (`core/utils/telegram_text.dart`);
+  o dialog de ajuda de formatação do composer é obrigatório em novos campos com
+  formatação. Erro `POST_LIMIT_REACHED` → `dogPostErrorMessage()` (PT-BR).
+- Upload de imagem de post acontece NA SELEÇÃO (presigned via FileUploader);
+  legendas guardam coordenadas normalizadas [0,1] clampadas.
+- Redes sociais: cores de marca APENAS de `core/theme/social_brand.dart` (exceção
+  documentada ao tema) e deep links APENAS via `buildSocialUrl()`
+  (`core/utils/social_links.dart`) — nunca montar URL inline.
+
 ### discovery
 - `DiscoveryCubit` + deck `flutter_card_swiper` (só horizontal). Swipe direita=LIKE,
   esquerda=PASS → `POST /swipes`; `matched:true` ⇒ dialog de match. Estados

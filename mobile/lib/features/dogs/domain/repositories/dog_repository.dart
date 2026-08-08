@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 
 import 'package:dogmatch/features/dogs/data/models/dog_model.dart';
+import 'package:dogmatch/features/dogs/data/models/dog_social_model.dart';
 import 'package:dogmatch/features/dogs/domain/entities/dog_enums.dart';
 
 /// Contrato de CRUD dos meus cães + fotos.
@@ -22,6 +23,7 @@ abstract class DogRepository {
     String? bio,
     bool neutered = false,
     bool pedigree = false,
+    DogSocialModel? social,
   });
 
   /// `PATCH /dogs/:id` — envia apenas os campos não nulos.
@@ -36,6 +38,7 @@ abstract class DogRepository {
     String? bio,
     bool? neutered,
     bool? pedigree,
+    DogSocialModel? social,
   });
 
   /// `DELETE /dogs/:id`.

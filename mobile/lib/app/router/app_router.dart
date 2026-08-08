@@ -7,7 +7,10 @@ import 'package:dogmatch/features/auth/presentation/pages/splash_page.dart';
 import 'package:dogmatch/features/chat/presentation/pages/chat_page.dart';
 import 'package:dogmatch/features/discovery/presentation/pages/discovery_page.dart';
 import 'package:dogmatch/features/dogs/data/models/dog_model.dart';
+import 'package:dogmatch/features/dogs/data/models/dog_post_model.dart';
 import 'package:dogmatch/features/dogs/presentation/pages/dog_form_page.dart';
+import 'package:dogmatch/features/dogs/presentation/pages/dog_post_composer_page.dart';
+import 'package:dogmatch/features/dogs/presentation/pages/dog_posts_manager_page.dart';
 import 'package:dogmatch/features/matches/data/models/match_model.dart';
 import 'package:dogmatch/features/matches/presentation/pages/matches_page.dart';
 import 'package:dogmatch/features/owners/presentation/pages/owner_profile_page.dart';
@@ -79,6 +82,29 @@ GoRouter buildAppRouter(AuthBloc authBloc) {
         builder: (context, state) => DogFormPage(
           dogId: state.pathParameters['id']!,
           initialDog: state.extra as DogModel?,
+        ),
+      ),
+      // Página do cão (posts): gerência pelo dono (extra: DogModel opcional).
+      GoRoute(
+        path: '/dogs/:id/posts',
+        builder: (context, state) => DogPostsManagerPage(
+          dogId: state.pathParameters['id']!,
+          dog: state.extra as DogModel?,
+        ),
+      ),
+      GoRoute(
+        path: '/dogs/:id/posts/new',
+        builder: (context, state) => DogPostComposerPage(
+          dogId: state.pathParameters['id']!,
+        ),
+      ),
+      // Edição de um post (extra: DogPostModel; sem extra, busca na lista).
+      GoRoute(
+        path: '/dogs/:id/posts/:postId/edit',
+        builder: (context, state) => DogPostComposerPage(
+          dogId: state.pathParameters['id']!,
+          postId: state.pathParameters['postId']!,
+          initialPost: state.extra as DogPostModel?,
         ),
       ),
       GoRoute(
