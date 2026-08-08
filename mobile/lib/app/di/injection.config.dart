@@ -51,6 +51,12 @@ import 'package:dogmatch/features/matches/domain/repositories/match_repository.d
     as _i19;
 import 'package:dogmatch/features/matches/presentation/cubit/matches_cubit.dart'
     as _i623;
+import 'package:dogmatch/features/owners/data/repositories/owners_repository_impl.dart'
+    as _i318;
+import 'package:dogmatch/features/owners/domain/repositories/owners_repository.dart'
+    as _i638;
+import 'package:dogmatch/features/owners/presentation/cubit/owner_profile_cubit.dart'
+    as _i496;
 import 'package:dogmatch/features/profile/data/repositories/profile_repository_impl.dart'
     as _i302;
 import 'package:dogmatch/features/profile/domain/repositories/profile_repository.dart'
@@ -95,6 +101,9 @@ extension GetItInjectableX on _i174.GetIt {
         gh<_i838.AuthSessionManager>(),
       ),
     );
+    gh.lazySingleton<_i638.OwnersRepository>(
+      () => _i318.OwnersRepositoryImpl(gh<_i361.Dio>()),
+    );
     gh.lazySingleton<_i190.ChatRepository>(
       () => _i454.ChatRepositoryImpl(gh<_i361.Dio>()),
     );
@@ -109,6 +118,9 @@ extension GetItInjectableX on _i174.GetIt {
     );
     gh.lazySingleton<_i557.DiscoveryRepository>(
       () => _i893.DiscoveryRepositoryImpl(gh<_i361.Dio>()),
+    );
+    gh.factory<_i496.OwnerProfileCubit>(
+      () => _i496.OwnerProfileCubit(gh<_i638.OwnersRepository>()),
     );
     gh.lazySingleton<_i549.AuthRepository>(
       () => _i750.AuthRepositoryImpl(gh<_i361.Dio>(), gh<_i478.TokenStorage>()),

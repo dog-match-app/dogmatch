@@ -10,9 +10,11 @@ import 'package:dogmatch/features/dogs/data/models/dog_model.dart';
 import 'package:dogmatch/features/dogs/presentation/pages/dog_form_page.dart';
 import 'package:dogmatch/features/matches/data/models/match_model.dart';
 import 'package:dogmatch/features/matches/presentation/pages/matches_page.dart';
+import 'package:dogmatch/features/owners/presentation/pages/owner_profile_page.dart';
 import 'package:dogmatch/features/profile/presentation/pages/profile_page.dart';
 import 'package:dogmatch/features/search/data/models/search_card_model.dart';
 import 'package:dogmatch/features/search/presentation/pages/dog_detail_page.dart';
+import 'package:dogmatch/features/search/presentation/pages/photo_viewer_page.dart';
 import 'package:dogmatch/features/search/presentation/pages/search_page.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
@@ -92,6 +94,21 @@ GoRouter buildAppRouter(AuthBloc authBloc) {
         builder: (context, state) => DogDetailPage(
           dogId: state.pathParameters['id']!,
           card: state.extra as SearchCardModel?,
+        ),
+      ),
+      // Perfil público do dono de um cão.
+      GoRoute(
+        path: '/owners/:id',
+        builder: (context, state) => OwnerProfilePage(
+          ownerId: state.pathParameters['id']!,
+        ),
+      ),
+      // Fotos em tela cheia com zoom (extra: PhotoViewerArgs).
+      GoRoute(
+        path: '/photo-viewer',
+        builder: (context, state) => PhotoViewerPage(
+          args: state.extra as PhotoViewerArgs? ??
+              const PhotoViewerArgs(photos: []),
         ),
       ),
       StatefulShellRoute.indexedStack(

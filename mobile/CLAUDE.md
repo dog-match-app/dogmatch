@@ -103,6 +103,12 @@ SDK em `~/development/flutter` (stable), já no PATH. Celular físico: ver `READ
   (`DogDetailCubit`); ações de swipe reutilizam `DiscoveryRepository.swipe` e o
   dialog de match do discovery — não duplique essa lógica.
 
+### owners
+- Perfil público do dono (`/owners/:id` ← card do dono no detalhe). `OwnersRepository`
+  → `GET /users/:id/profile`; a resposta NUNCA tem email/telefone/coordenadas — não
+  adicione esses campos ao model. Cards de cães navegam para `/search/dogs/:id`
+  SEM extra (o detalhe busca via fallback).
+
 ### matches
 - `MatchesCubit` refaz fetch quando o `ActiveDogCubit` troca (stream) e no
   pull-to-refresh. Sem lastMessage → placeholder "Vocês deram match! Diga oi 🐶".
@@ -111,6 +117,22 @@ SDK em `~/development/flutter` (stable), já no PATH. Celular físico: ver `READ
 - `ChatCubit` por conversa: histórico paginado por cursor (carrega mais no topo),
   envio via socket com fallback REST quando desconectado, `message:new` com dedup
   por id. AppBar mostra outro cão + dono.
+
+## Padrões de UI obrigatórios (vindos de feedback do dono do produto)
+
+- **Tags/chips**: SEMPRE via `DogTagChip`/`DogAgeChip`/`dogIntentChips()`
+  (`features/dogs/presentation/widgets/dog_tag_chips.dart`) — ícone indica a
+  categoria. Idade NUNCA aparece colada ao nome ("Rex, 2a" é proibido): é chip
+  ("2 anos") ou item da grade de características.
+- **Intenção**: "Ambos" é proibido na UI. BOTH rende DOIS chips (Cruzamento +
+  Amizade) via `displayIntents`, ou o texto "Cruzamento e amizade" em campos únicos.
+- **Características no detalhe**: grade rotulada (rótulo caixa alta + valor), nunca
+  chips soltos sem categoria.
+- **Datas digitáveis**: campos de data usam `BrDateInputFormatter` +
+  `tryParseBrDate` (`core/utils/date_input.dart`) com máscara `dd/mm/aaaa` E botão
+  de calendário escrevendo no MESMO controller — nunca só o picker.
+- **Fotos**: qualquer imagem "hero" deve abrir no `PhotoViewerPage` (`/photo-viewer`
+  com `PhotoViewerArgs`) — zoom por pinça e duplo-toque.
 
 ## Plataforma
 
