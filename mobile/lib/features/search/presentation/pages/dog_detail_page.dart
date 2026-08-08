@@ -3,6 +3,7 @@ import 'package:dogmatch/app/di/injection.dart';
 import 'package:dogmatch/core/widgets/empty_state.dart';
 import 'package:dogmatch/core/widgets/loading_indicator.dart';
 import 'package:dogmatch/core/widgets/primary_button.dart';
+import 'package:dogmatch/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:dogmatch/features/discovery/domain/entities/swipe_action.dart';
 import 'package:dogmatch/features/discovery/presentation/widgets/match_dialog.dart';
 import 'package:dogmatch/features/dogs/data/models/dog_model.dart';
@@ -111,10 +112,17 @@ class _DogDetailView extends StatelessWidget {
                     _PostsTab(dog: dog),
                   ],
                 ),
-                bottomNavigationBar: SafeArea(
-                  minimum: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-                  child: _BottomActions(state: state, dogId: dogId),
-                ),
+                // Cão do próprio usuário (aberto via "Meus cães") não tem
+                // ações de swipe — o backend rejeita swipe no próprio cão.
+                bottomNavigationBar: switch (context.read<AuthBloc>().state) {
+                  AuthAuthenticated(user: final me)
+                      when me.id == dog.ownerId =>
+                    null,
+                  _ => SafeArea(
+                      minimum: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                      child: _BottomActions(state: state, dogId: dogId),
+                    ),
+                },
               ),
             );
         }

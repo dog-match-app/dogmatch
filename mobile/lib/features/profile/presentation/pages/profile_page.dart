@@ -280,6 +280,8 @@ class _ProfileViewState extends State<_ProfileView> {
                       for (final dog in dogsState.dogs)
                         Card(
                           child: ListTile(
+                            onTap: () =>
+                                context.push('/search/dogs/${dog.id}'),
                             leading: CircleAvatar(
                               backgroundImage: dog.mainPhotoUrl == null
                                   ? null
