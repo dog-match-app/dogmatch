@@ -14,6 +14,15 @@ async function bootstrap(): Promise<void> {
 
   const config = app.get(ConfigService);
 
+  if (config.get<string>('NODE_ENV') === 'production') {
+    // Atrás do reverse proxy (Traefik/Coolify): IP real vem do X-Forwarded-For
+    // do primeiro hop — necessário para o rate limit por IP funcionar.
+    const express = app.getHttpAdapter().getInstance() as {
+      set: (key: string, value: unknown) => void;
+    };
+    express.set('trust proxy', 1);
+  }
+
   const corsOrigins = config.getOrThrow<string>('CORS_ORIGINS');
   app.enableCors({
     origin:
