@@ -10,6 +10,7 @@ Swipe, match e chat em tempo real.
 | 📦 Infra dev | Docker Compose (db, redis, MinIO) |
 
 > Arquitetura completa, contrato da API e decisões técnicas: **[ARCHITECTURE.md](./ARCHITECTURE.md)**
+> Publicar o backend numa VPS com Coolify: **[DEPLOY.md](./DEPLOY.md)**
 
 ## Pré-requisitos
 
