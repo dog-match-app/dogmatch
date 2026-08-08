@@ -306,7 +306,7 @@ OwnerProfileDto { id, name, bio?, avatarUrl?, city?, memberSince,
 | GET | `/users/:id/profile` | ✔ | — | `OwnerProfileDto` (cães ativos; `distanceKm` se ambos têm localização; `stats.matches` = matches dos cães do dono) |
 | POST | `/files/presigned-upload` | ✔ | `{ contentType, folder: 'avatars'\|'dogs' }` | `PresignedUploadDto` |
 | GET | `/dogs/mine` | ✔ | — | `DogDto[]` |
-| POST | `/dogs` | ✔ | `{ name, breed, sex, birthDate, size, intent, bio?, neutered?, pedigree? }` | 201 `DogDto` |
+| POST | `/dogs` | ✔ | `{ name, breed, sex, birthDate, size, intent, bio?, neutered?, pedigree?, whatsapp?, instagram?, pinterest?, telegram? }` | 201 `DogDto` |
 | GET | `/dogs/:id` | ✔ | — | `DogDto` + `owner: { id, name, city?, avatarUrl? }` |
 | PATCH | `/dogs/:id` | ✔ (dono) | campos parciais | `DogDto` |
 | DELETE | `/dogs/:id` | ✔ (dono) | — | 204 |
