@@ -1,9 +1,10 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:dogmatch/features/discovery/data/models/discovery_card_model.dart';
+import 'package:dogmatch/features/dogs/presentation/widgets/dog_tag_chips.dart';
 import 'package:flutter/material.dart';
 
 /// Card do deck de swipe: foto (troca por toque nas laterais), gradiente
-/// inferior, "Nome, idade", raça, distância e chips de intenção.
+/// inferior, nome, raça, distância e chips de idade/intenção/porte.
 class DiscoveryDogCard extends StatefulWidget {
   const DiscoveryDogCard({super.key, required this.card});
 
@@ -111,7 +112,7 @@ class _DiscoveryDogCardState extends State<DiscoveryDogCard> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        '${dog.name}, ${dog.ageLabel}',
+                        dog.name,
                         style: theme.textTheme.headlineSmall?.copyWith(
                           color: Colors.white,
                           fontWeight: FontWeight.bold,
@@ -144,10 +145,25 @@ class _DiscoveryDogCardState extends State<DiscoveryDogCard> {
                         spacing: 8,
                         runSpacing: 4,
                         children: [
-                          _InfoChip(label: dog.intent.labelPtBr),
-                          _InfoChip(label: dog.size.labelPtBr),
+                          DogAgeChip(
+                            dog: dog,
+                            style: DogTagChipStyle.overlay,
+                          ),
+                          ...dogIntentChips(
+                            dog.intent,
+                            style: DogTagChipStyle.overlay,
+                          ),
+                          DogTagChip(
+                            icon: Icons.straighten_outlined,
+                            label: dog.size.labelPtBr,
+                            style: DogTagChipStyle.overlay,
+                          ),
                           if (dog.pedigree)
-                            const _InfoChip(label: 'Pedigree'),
+                            const DogTagChip(
+                              icon: Icons.workspace_premium_outlined,
+                              label: 'Pedigree',
+                              style: DogTagChipStyle.overlay,
+                            ),
                         ],
                       ),
                     ],
@@ -158,30 +174,6 @@ class _DiscoveryDogCardState extends State<DiscoveryDogCard> {
           ),
         );
       },
-    );
-  }
-}
-
-class _InfoChip extends StatelessWidget {
-  const _InfoChip({required this.label});
-
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration: BoxDecoration(
-        color: Colors.white24,
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: Text(
-        label,
-        style: Theme.of(context)
-            .textTheme
-            .labelMedium
-            ?.copyWith(color: Colors.white),
-      ),
     );
   }
 }

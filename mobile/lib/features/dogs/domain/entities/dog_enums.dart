@@ -34,16 +34,28 @@ enum DogSize {
 }
 
 /// Intenção do perfil do cão (`DogDto.intent`).
+///
+/// `BOTH` nunca vira o rótulo "Ambos" na UI: como tag, é exibido como DOIS
+/// chips ("Cruzamento" + "Amizade" — ver [displayIntents]); como valor único,
+/// por extenso ("Cruzamento e amizade").
 enum DogIntent {
   @JsonValue('BREEDING')
   breeding('BREEDING', 'Cruzamento'),
   @JsonValue('FRIENDSHIP')
   friendship('FRIENDSHIP', 'Amizade'),
   @JsonValue('BOTH')
-  both('BOTH', 'Ambos');
+  both('BOTH', 'Cruzamento e amizade');
 
   const DogIntent(this.apiValue, this.labelPtBr);
 
   final String apiValue;
   final String labelPtBr;
+}
+
+/// Desdobra a intenção em tags individuais: `BOTH` vira as duas intenções
+/// simples; as demais viram uma lista de um item.
+extension DogIntentDisplay on DogIntent {
+  List<DogIntent> get displayIntents => this == DogIntent.both
+      ? const [DogIntent.breeding, DogIntent.friendship]
+      : [this];
 }

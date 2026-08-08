@@ -1,4 +1,5 @@
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:dogmatch/features/dogs/presentation/widgets/dog_tag_chips.dart';
 import 'package:dogmatch/features/search/data/models/search_card_model.dart';
 import 'package:flutter/material.dart';
 
@@ -42,8 +43,8 @@ class SearchCardBadge extends StatelessWidget {
   }
 }
 
-/// Card horizontal de um resultado da busca: foto 96px, nome + idade, raça,
-/// cidade/distância, chip de intenção e badge de interação.
+/// Card horizontal de um resultado da busca: foto 96px, nome, raça,
+/// cidade/distância, chips de idade/intenção e badge de interação.
 class SearchResultCard extends StatelessWidget {
   const SearchResultCard({super.key, required this.card, required this.onTap});
 
@@ -83,7 +84,7 @@ class SearchResultCard extends StatelessWidget {
                       children: [
                         Expanded(
                           child: Text(
-                            '${dog.name}, ${dog.ageLabel}',
+                            dog.name,
                             style: theme.textTheme.titleMedium
                                 ?.copyWith(fontWeight: FontWeight.bold),
                             maxLines: 1,
@@ -129,21 +130,13 @@ class SearchResultCard extends StatelessWidget {
                       ),
                     ],
                     const SizedBox(height: 8),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 3,
-                      ),
-                      decoration: BoxDecoration(
-                        color: theme.colorScheme.secondaryContainer,
-                        borderRadius: BorderRadius.circular(999),
-                      ),
-                      child: Text(
-                        dog.intent.labelPtBr,
-                        style: theme.textTheme.labelSmall?.copyWith(
-                          color: theme.colorScheme.onSecondaryContainer,
-                        ),
-                      ),
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 4,
+                      children: [
+                        DogAgeChip(dog: dog),
+                        ...dogIntentChips(dog.intent),
+                      ],
                     ),
                   ],
                 ),

@@ -61,15 +61,31 @@ class DogModel extends Equatable {
   String? get mainPhotoUrl =>
       photos.isEmpty ? null : sortedPhotos.first.url;
 
-  /// Idade curta calculada de [birthDate]: `"2a"` (anos) ou `"8m"` (meses).
-  String get ageLabel {
+  /// Idade em meses completos calculada de [birthDate] (mínimo 0).
+  int get ageInMonths {
     final now = DateTime.now();
     var months =
         (now.year - birthDate.year) * 12 + (now.month - birthDate.month);
     if (now.day < birthDate.day) months--;
     if (months < 0) months = 0;
+    return months;
+  }
+
+  /// Idade curta: `"2a"` (anos) ou `"8m"` (meses).
+  String get ageLabel {
+    final months = ageInMonths;
     if (months >= 12) return '${months ~/ 12}a';
     return '${months}m';
+  }
+
+  /// Idade por extenso: `"8 meses"`, `"1 ano"`, `"5 anos"`.
+  String get ageLongLabel {
+    final months = ageInMonths;
+    if (months >= 12) {
+      final years = months ~/ 12;
+      return years == 1 ? '1 ano' : '$years anos';
+    }
+    return months == 1 ? '1 mês' : '$months meses';
   }
 
   @override
