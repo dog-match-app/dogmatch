@@ -195,6 +195,36 @@ uma das partes não tem localização. Implementação: mesma abordagem do feed 
 `$queryRaw` com cláusulas `Prisma.sql` compostas (count + página) e enriquecimento
 (fotos, swipe/match da perspectiva) via Prisma preservando a ordem.
 
+### 3.5.2 Página do cão (posts)
+
+Cada cão tem uma página personalizada montada pelo dono com **até 10 posts**
+(400 `POST_LIMIT_REACHED` ao exceder). Tipos e validações:
+
+| Tipo | Regras |
+|---|---|
+| `TEXT` | `text` 1..2000 chars, sem imagens |
+| `IMAGE` | exatamente 1 imagem, sem `text` |
+| `IMAGE_TEXT` | exatamente 1 imagem + `text` 1..2000 |
+| `CAROUSEL` | 2..8 imagens, `text` opcional (≤2000) |
+
+- Imagens pelo fluxo presigned normal (folder `dogs`); o post referencia a `key`.
+- **Legendas posicionadas**: cada imagem aceita 0..5 legendas `{ text (1..200), x, y }`
+  com `x`/`y` ∈ [0,1] (fração da largura/altura — âncora do marcador na imagem).
+- `text` armazena formatação leve estilo Telegram, renderizada no app:
+  `**negrito**`, `__itálico__`, `~~riscado~~`, `` `mono` ``. O servidor guarda cru
+  (sem sanitização de markup; tamanho validado).
+- Mutações só do dono (403). Leitura: qualquer autenticado. Ordem: `createdAt desc`.
+- `PATCH` substitui o conteúdo (text/imagens/legendas) em transação; `type` é imutável.
+
+### 3.5.3 Redes sociais do cão
+
+Campos opcionais no cadastro do cão (o dono decide se aponta para a rede do cão ou
+a dele): `whatsapp`, `instagram`, `pinterest`, `telegram` (strings livres ≤100 —
+handle, número ou URL; o app monta o deep link: `wa.me/<dígitos>`,
+`instagram.com/<handle>`, `pinterest.com/<handle>`, `t.me/<handle>`; valores
+`http(s)://` são usados como estão). Exibidos no detalhe como botões com as cores
+oficiais das marcas.
+
 ### 3.6 Swipe → Match
 
 `POST /swipes` roda em **transação**:
@@ -237,7 +267,12 @@ DogDto         { id, ownerId, name, breed, sex: 'MALE'|'FEMALE',
                  birthDate, size: 'SMALL'|'MEDIUM'|'LARGE'|'GIANT',
                  intent: 'BREEDING'|'FRIENDSHIP'|'BOTH', bio?,
                  neutered, pedigree, active,
-                 photos: [{ id, url, position }], createdAt }
+                 photos: [{ id, url, position }],
+                 social: { whatsapp?, instagram?, pinterest?, telegram? }, createdAt }
+DogPostCaptionDto { id, text, x, y }          // x/y ∈ [0,1]
+DogPostImageDto { id, url, position, captions: DogPostCaptionDto[] }
+DogPostDto     { id, dogId, type: 'TEXT'|'IMAGE'|'IMAGE_TEXT'|'CAROUSEL',
+                 text?, images: DogPostImageDto[], createdAt, updatedAt }
 AuthResponseDto { user: UserDto, accessToken, refreshToken }
 TokensDto      { accessToken, refreshToken }
 DiscoveryCardDto { dog: DogDto, distanceKm: number,
@@ -277,6 +312,10 @@ OwnerProfileDto { id, name, bio?, avatarUrl?, city?, memberSince,
 | DELETE | `/dogs/:id` | ✔ (dono) | — | 204 |
 | POST | `/dogs/:id/photos` | ✔ (dono) | `{ key, position? }` (máx. 6 fotos) | 201 photo |
 | DELETE | `/dogs/:id/photos/:photoId` | ✔ (dono) | — | 204 |
+| GET | `/dogs/:id/posts` | ✔ | — | `DogPostDto[]` (createdAt desc) |
+| POST | `/dogs/:id/posts` | ✔ (dono) | `{ type, text?, images?: [{ key, position?, captions?: [{text,x,y}] }] }` (§3.5.2) | 201 `DogPostDto` |
+| PATCH | `/dogs/:id/posts/:postId` | ✔ (dono) | mesmo shape sem `type` (conteúdo substituído) | `DogPostDto` |
+| DELETE | `/dogs/:id/posts/:postId` | ✔ (dono) | — | 204 |
 | GET | `/discovery` | ✔ | `?dogId=&radiusKm=50&limit=20` | `DiscoveryCardDto[]` |
 | GET | `/discovery/search` | ✔ | filtros do §3.5.1 | `SearchResultDto` |
 | POST | `/swipes` | ✔ | `{ swiperDogId, targetDogId, action: 'LIKE'\|'PASS' }` | `SwipeResultDto` |
@@ -361,6 +400,13 @@ model RefreshToken {
   @@map("refresh_tokens")
 }
 
+enum DogPostType {
+  TEXT
+  IMAGE
+  IMAGE_TEXT
+  CAROUSEL
+}
+
 model Dog {
   id        String    @id @default(uuid()) @db.Uuid
   ownerId   String    @map("owner_id") @db.Uuid
@@ -374,11 +420,16 @@ model Dog {
   neutered  Boolean   @default(false)
   pedigree  Boolean   @default(false)
   active    Boolean   @default(true)
+  socialWhatsapp  String? @map("social_whatsapp")
+  socialInstagram String? @map("social_instagram")
+  socialPinterest String? @map("social_pinterest")
+  socialTelegram  String? @map("social_telegram")
   createdAt DateTime  @default(now()) @map("created_at")
   updatedAt DateTime  @updatedAt @map("updated_at")
 
   owner          User       @relation(fields: [ownerId], references: [id], onDelete: Cascade)
   photos         DogPhoto[]
+  posts          DogPost[]
   swipesGiven    Swipe[]    @relation("DogSwipesGiven")
   swipesReceived Swipe[]    @relation("DogSwipesReceived")
   matchesAsA     Match[]    @relation("MatchDogA")
@@ -400,6 +451,48 @@ model DogPhoto {
 
   @@index([dogId])
   @@map("dog_photos")
+}
+
+model DogPost {
+  id        String      @id @default(uuid()) @db.Uuid
+  dogId     String      @map("dog_id") @db.Uuid
+  type      DogPostType
+  text      String?
+  createdAt DateTime    @default(now()) @map("created_at")
+  updatedAt DateTime    @updatedAt @map("updated_at")
+
+  dog    Dog            @relation(fields: [dogId], references: [id], onDelete: Cascade)
+  images DogPostImage[]
+
+  @@index([dogId, createdAt])
+  @@map("dog_posts")
+}
+
+model DogPostImage {
+  id       String @id @default(uuid()) @db.Uuid
+  postId   String @map("post_id") @db.Uuid
+  key      String
+  url      String
+  position Int    @default(0)
+
+  post     DogPost               @relation(fields: [postId], references: [id], onDelete: Cascade)
+  captions DogPostImageCaption[]
+
+  @@index([postId])
+  @@map("dog_post_images")
+}
+
+model DogPostImageCaption {
+  id      String @id @default(uuid()) @db.Uuid
+  imageId String @map("image_id") @db.Uuid
+  text    String
+  x       Float
+  y       Float
+
+  image DogPostImage @relation(fields: [imageId], references: [id], onDelete: Cascade)
+
+  @@index([imageId])
+  @@map("dog_post_image_captions")
 }
 
 model Swipe {
@@ -487,7 +580,7 @@ mobile/lib/
 └── features/
     ├── auth/        # AuthBloc global + Login/Register (cubits + pages)
     ├── profile/     # perfil do dono, localização (geolocator), avatar
-    ├── dogs/        # meus cães, formulário, fotos (image_picker + presigned PUT)
+    ├── dogs/        # meus cães, formulário, fotos, página do cão (posts + editor)
     ├── discovery/   # deck de swipe (flutter_card_swiper), seletor de cão ativo
     ├── search/      # busca com filtros estilo OLX + detalhe do cão
     ├── matches/     # lista de matches
@@ -515,6 +608,8 @@ features/<x>/
 | geolocator | Localização do dono |
 | cached_network_image | Cache das fotos |
 | intl + flutter_localizations | pt_BR |
+| font_awesome_flutter | Ícones de marca das redes sociais |
+| url_launcher | Abrir deep links das redes (wa.me, instagram, t.me…) |
 
 ### 6.3 Fluxos-chave
 
@@ -529,6 +624,12 @@ features/<x>/
   filtros (sexo, porte, intenção, idade, raio, ordenação), lista paginada com scroll
   infinito → detalhe do cão (carousel de fotos, infos, dono) com ações Curtir/Passar
   usando o cão ativo; badges de "já curtido"/"match" nos cards.
+- **Página do cão**: detalhe com abas "Perfil" | "Posts". Posts renderizados por tipo
+  (texto formatado estilo Telegram via parser próprio, imagem → viewer, carrossel com
+  marcadores de legenda posicionados tocáveis). Dono edita em "Página do cão" (meus
+  cães): composer por tipo com botão de ajuda da formatação, contador X/10, legendas
+  criadas tocando no ponto da imagem. Botões de redes sociais no detalhe com as cores
+  das marcas (constantes em `social_brand.dart` — exceção documentada ao tema).
 - **Upload**: image_picker → `POST /files/presigned-upload` → `PUT` binário → registra key.
 - **Chat**: conecta no namespace `/chat` com o access token, `match:join`, envia por
   socket (fallback REST se desconectado), recebe `message:new`.

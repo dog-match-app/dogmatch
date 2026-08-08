@@ -50,7 +50,8 @@ Formato obrigatório: `tipo(escopo): descrição`
 - **Um commit por mudança lógica** — backend e mobile da mesma feature são commits
   separados, cada um com seu escopo.
 - **Breaking change** de contrato: `tipo(escopo)!: ...` + rodapé `BREAKING CHANGE: ...`.
-- **Rodapé sempre**: `Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>`.
+- **Sem trailers automáticos**: NUNCA adicionar `Co-Authored-By` (nem rodapés
+  similares de coautoria/geração) às mensagens de commit.
 
 Exemplos válidos: `feat(backend): perfil público do dono` ·
 `fix(mobile): máscara de data aceita ano bissexto` · `docs: contrato de denúncias`.
