@@ -66,6 +66,13 @@ model RefreshToken {
   @@map("refresh_tokens")
 }
 
+enum DogPostType {
+  TEXT
+  IMAGE
+  IMAGE_TEXT
+  CAROUSEL
+}
+
 model Dog {
   id        String    @id @default(uuid()) @db.Uuid
   ownerId   String    @map("owner_id") @db.Uuid
@@ -79,11 +86,16 @@ model Dog {
   neutered  Boolean   @default(false)
   pedigree  Boolean   @default(false)
   active    Boolean   @default(true)
+  socialWhatsapp  String? @map("social_whatsapp")
+  socialInstagram String? @map("social_instagram")
+  socialPinterest String? @map("social_pinterest")
+  socialTelegram  String? @map("social_telegram")
   createdAt DateTime  @default(now()) @map("created_at")
   updatedAt DateTime  @updatedAt @map("updated_at")
 
   owner          User       @relation(fields: [ownerId], references: [id], onDelete: Cascade)
   photos         DogPhoto[]
+  posts          DogPost[]
   swipesGiven    Swipe[]    @relation("DogSwipesGiven")
   swipesReceived Swipe[]    @relation("DogSwipesReceived")
   matchesAsA     Match[]    @relation("MatchDogA")
@@ -105,6 +117,48 @@ model DogPhoto {
 
   @@index([dogId])
   @@map("dog_photos")
+}
+
+model DogPost {
+  id        String      @id @default(uuid()) @db.Uuid
+  dogId     String      @map("dog_id") @db.Uuid
+  type      DogPostType
+  text      String?
+  createdAt DateTime    @default(now()) @map("created_at")
+  updatedAt DateTime    @updatedAt @map("updated_at")
+
+  dog    Dog            @relation(fields: [dogId], references: [id], onDelete: Cascade)
+  images DogPostImage[]
+
+  @@index([dogId, createdAt])
+  @@map("dog_posts")
+}
+
+model DogPostImage {
+  id       String @id @default(uuid()) @db.Uuid
+  postId   String @map("post_id") @db.Uuid
+  key      String
+  url      String
+  position Int    @default(0)
+
+  post     DogPost               @relation(fields: [postId], references: [id], onDelete: Cascade)
+  captions DogPostImageCaption[]
+
+  @@index([postId])
+  @@map("dog_post_images")
+}
+
+model DogPostImageCaption {
+  id      String @id @default(uuid()) @db.Uuid
+  imageId String @map("image_id") @db.Uuid
+  text    String
+  x       Float
+  y       Float
+
+  image DogPostImage @relation(fields: [imageId], references: [id], onDelete: Cascade)
+
+  @@index([imageId])
+  @@map("dog_post_image_captions")
 }
 
 model Swipe {

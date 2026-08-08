@@ -37,6 +37,10 @@ const makeDog = (id: string, ownerId: string, name: string) => ({
   neutered: false,
   pedigree: false,
   active: true,
+  socialWhatsapp: null,
+  socialInstagram: null,
+  socialPinterest: null,
+  socialTelegram: null,
   createdAt: new Date(),
   updatedAt: new Date(),
 });

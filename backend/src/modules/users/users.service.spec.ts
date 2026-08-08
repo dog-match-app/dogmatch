@@ -23,6 +23,10 @@ const makeDog = (id: string, name: string, createdAt: string) => ({
   neutered: false,
   pedigree: true,
   active: true,
+  socialWhatsapp: null,
+  socialInstagram: '@mel.labrador',
+  socialPinterest: null,
+  socialTelegram: null,
   createdAt: new Date(createdAt),
   updatedAt: new Date(createdAt),
   photos: [
@@ -127,6 +131,12 @@ describe('UsersService (getOwnerProfile)', () => {
         position: 0,
       },
     ]);
+    expect(profile.dogs[0].social).toEqual({
+      whatsapp: null,
+      instagram: '@mel.labrador',
+      pinterest: null,
+      telegram: null,
+    });
     // Matches are counted with OR over dogAId/dogBId across ALL of the
     // owner's dog ids (including inactive ones).
     expect(prismaMock.match.count).toHaveBeenCalledWith({

@@ -50,6 +50,10 @@ export class DogsService {
         bio: dto.bio,
         neutered: dto.neutered ?? false,
         pedigree: dto.pedigree ?? false,
+        socialWhatsapp: dto.whatsapp ?? null,
+        socialInstagram: dto.instagram ?? null,
+        socialPinterest: dto.pinterest ?? null,
+        socialTelegram: dto.telegram ?? null,
       },
       include: { photos: true },
     });
@@ -81,7 +85,8 @@ export class DogsService {
     dto: UpdateDogDto,
   ): Promise<DogDto> {
     await this.getOwnedDog(userId, dogId);
-    const { birthDate, ...rest } = dto;
+    const { birthDate, whatsapp, instagram, pinterest, telegram, ...rest } =
+      dto;
     const dog = await this.prisma.dog.update({
       where: { id: dogId },
       data: {
@@ -89,6 +94,10 @@ export class DogsService {
         ...(birthDate !== undefined
           ? { birthDate: this.parseBirthDate(birthDate) }
           : {}),
+        ...(whatsapp !== undefined ? { socialWhatsapp: whatsapp } : {}),
+        ...(instagram !== undefined ? { socialInstagram: instagram } : {}),
+        ...(pinterest !== undefined ? { socialPinterest: pinterest } : {}),
+        ...(telegram !== undefined ? { socialTelegram: telegram } : {}),
       },
       include: { photos: { orderBy: { position: 'asc' } } },
     });

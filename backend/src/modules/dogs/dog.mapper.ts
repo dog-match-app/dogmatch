@@ -24,6 +24,12 @@ export function toDogDto(dog: DogWithPhotos): DogDto {
         url: photo.url,
         position: photo.position,
       })),
+    social: {
+      whatsapp: dog.socialWhatsapp,
+      instagram: dog.socialInstagram,
+      pinterest: dog.socialPinterest,
+      telegram: dog.socialTelegram,
+    },
     createdAt: dog.createdAt.toISOString(),
   };
 }

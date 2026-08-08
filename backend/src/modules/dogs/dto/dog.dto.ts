@@ -12,6 +12,20 @@ export class DogPhotoDto {
   position!: number;
 }
 
+export class DogSocialDto {
+  @ApiProperty({ nullable: true, type: String, example: '+55 11 91234-0002' })
+  whatsapp!: string | null;
+
+  @ApiProperty({ nullable: true, type: String, example: '@rex.bulldog' })
+  instagram!: string | null;
+
+  @ApiProperty({ nullable: true, type: String, example: 'rexbulldog' })
+  pinterest!: string | null;
+
+  @ApiProperty({ nullable: true, type: String, example: '@rexbulldog' })
+  telegram!: string | null;
+}
+
 export class DogDto {
   @ApiProperty()
   id!: string;
@@ -51,6 +65,9 @@ export class DogDto {
 
   @ApiProperty({ type: [DogPhotoDto] })
   photos!: DogPhotoDto[];
+
+  @ApiProperty({ type: DogSocialDto })
+  social!: DogSocialDto;
 
   @ApiProperty({ format: 'date-time' })
   createdAt!: string;

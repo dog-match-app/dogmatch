@@ -1,5 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { DogIntent, DogSex, DogSize } from '@prisma/client';
+import { Transform } from 'class-transformer';
 import {
   IsBoolean,
   IsDateString,
@@ -9,6 +10,15 @@ import {
   MaxLength,
   MinLength,
 } from 'class-validator';
+
+/** Trims the value; an empty (or blank) string becomes null (clears the field). */
+const trimToNull = ({ value }: { value: unknown }): unknown => {
+  if (typeof value !== 'string') {
+    return value;
+  }
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
+};
 
 export class CreateDogDto {
   @ApiProperty({ example: 'Thor' })
@@ -54,4 +64,53 @@ export class CreateDogDto {
   @IsOptional()
   @IsBoolean()
   pedigree?: boolean;
+
+  @ApiPropertyOptional({
+    maxLength: 100,
+    nullable: true,
+    example: '+55 11 91234-0002',
+    description:
+      'WhatsApp handle, number or URL (free text; empty string clears it)',
+  })
+  @Transform(trimToNull)
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  whatsapp?: string | null;
+
+  @ApiPropertyOptional({
+    maxLength: 100,
+    nullable: true,
+    example: '@rex.bulldog',
+    description: 'Instagram handle or URL (free text; empty string clears it)',
+  })
+  @Transform(trimToNull)
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  instagram?: string | null;
+
+  @ApiPropertyOptional({
+    maxLength: 100,
+    nullable: true,
+    example: 'rexbulldog',
+    description: 'Pinterest handle or URL (free text; empty string clears it)',
+  })
+  @Transform(trimToNull)
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  pinterest?: string | null;
+
+  @ApiPropertyOptional({
+    maxLength: 100,
+    nullable: true,
+    example: '@rexbulldog',
+    description: 'Telegram handle or URL (free text; empty string clears it)',
+  })
+  @Transform(trimToNull)
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  telegram?: string | null;
 }

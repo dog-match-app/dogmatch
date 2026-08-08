@@ -1,5 +1,6 @@
 import {
   DogIntent,
+  DogPostType,
   DogSex,
   DogSize,
   PrismaClient,
@@ -93,6 +94,8 @@ async function main(): Promise<void> {
       bio: 'Tímida no começo, mas gruda em quem dá petisco.',
       neutered: true,
       pedigree: false,
+      socialInstagram: '@luna.poodle',
+      socialTelegram: '@lunapoodle',
       photos: { create: [{ key: placedog(3), url: placedog(3), position: 0 }] },
     },
   });
@@ -128,6 +131,8 @@ async function main(): Promise<void> {
       bio: 'Ronca alto e ama socializar na pracinha.',
       neutered: true,
       pedigree: false,
+      socialWhatsapp: '+55 11 91234-0002',
+      socialInstagram: '@rex.bulldog',
       photos: { create: [{ key: placedog(6), url: placedog(6), position: 0 }] },
     },
   });
@@ -238,6 +243,62 @@ async function main(): Promise<void> {
     },
   });
 
+  // Rex's dog page: one post of each flavor (TEXT with light markup,
+  // IMAGE_TEXT, CAROUSEL with positioned captions). Newest first in the app.
+  const daysAgo = (n: number): Date =>
+    new Date(Date.now() - n * 24 * 60 * 60_000);
+  await prisma.dogPost.create({
+    data: {
+      dogId: rex.id,
+      type: DogPostType.TEXT,
+      text: '**Rex** adora __parques__ e ~~gatos~~ petiscos',
+      createdAt: daysAgo(3),
+    },
+  });
+  await prisma.dogPost.create({
+    data: {
+      dogId: rex.id,
+      type: DogPostType.IMAGE_TEXT,
+      text: 'Primeiro banho de piscina do verão — `nota 10` em estilo!',
+      createdAt: daysAgo(2),
+      images: {
+        create: [{ key: placedog(15), url: placedog(15), position: 0 }],
+      },
+    },
+  });
+  await prisma.dogPost.create({
+    data: {
+      dogId: rex.id,
+      type: DogPostType.CAROUSEL,
+      text: 'Melhores momentos do rolê no parque 🐾',
+      createdAt: daysAgo(1),
+      images: {
+        create: [
+          {
+            key: placedog(16),
+            url: placedog(16),
+            position: 0,
+            captions: {
+              create: [
+                { text: 'Cicatriz da aventura de 2024', x: 0.7, y: 0.3 },
+                { text: 'Coleira nova, presente da vovó', x: 0.4, y: 0.8 },
+              ],
+            },
+          },
+          { key: placedog(17), url: placedog(17), position: 1 },
+          {
+            key: placedog(18),
+            url: placedog(18),
+            position: 2,
+            captions: {
+              create: [{ text: 'Cansado depois de 2h de bola', x: 0.5, y: 0.5 }],
+            },
+          },
+        ],
+      },
+    },
+  });
+
   await prisma.swipe.createMany({
     data: [
       { swiperDogId: thor.id, targetDogId: mel.id, action: SwipeAction.LIKE },
@@ -295,6 +356,8 @@ async function main(): Promise<void> {
       .join(', ')}`,
   );
   console.log(`  match Thor x Mel: ${match.id}`);
+  console.log('  dog page: 3 posts on Rex (TEXT, IMAGE_TEXT, CAROUSEL)');
+  console.log('  social links: Rex (whatsapp+instagram), Luna (instagram+telegram)');
 }
 
 main()
