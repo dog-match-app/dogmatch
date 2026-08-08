@@ -1,6 +1,7 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:dogmatch/app/di/injection.dart';
 import 'package:dogmatch/core/network/file_uploader.dart';
+import 'package:dogmatch/core/utils/date_input.dart';
 import 'package:dogmatch/core/widgets/app_text_field.dart';
 import 'package:dogmatch/core/widgets/loading_indicator.dart';
 import 'package:dogmatch/core/widgets/primary_button.dart';
@@ -11,7 +12,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:intl/intl.dart';
 
 /// Criação (`/dogs/new`) e edição (`/dogs/:id/edit`) de um cão.
 ///
@@ -50,16 +50,19 @@ class _DogFormView extends StatefulWidget {
 class _DogFormViewState extends State<_DogFormView> {
   static const int _maxPhotos = 6;
 
+  /// Ano mínimo aceito para a data de nascimento.
+  static const int _minBirthYear = 1995;
+
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
   final _breedController = TextEditingController();
+  final _birthDateController = TextEditingController();
   final _bioController = TextEditingController();
   final _imagePicker = ImagePicker();
 
   DogSex _sex = DogSex.male;
   DogSize _size = DogSize.medium;
   DogIntent _intent = DogIntent.both;
-  DateTime? _birthDate;
   bool _neutered = false;
   bool _pedigree = false;
   bool _prefilled = false;
@@ -68,6 +71,7 @@ class _DogFormViewState extends State<_DogFormView> {
   void dispose() {
     _nameController.dispose();
     _breedController.dispose();
+    _birthDateController.dispose();
     _bioController.dispose();
     super.dispose();
   }
@@ -77,40 +81,60 @@ class _DogFormViewState extends State<_DogFormView> {
     _prefilled = true;
     _nameController.text = dog.name;
     _breedController.text = dog.breed;
+    _birthDateController.text = formatBrDate(dog.birthDate);
     _bioController.text = dog.bio ?? '';
     setState(() {
       _sex = dog.sex;
       _size = dog.size;
       _intent = dog.intent;
-      _birthDate = dog.birthDate;
       _neutered = dog.neutered;
       _pedigree = dog.pedigree;
     });
   }
 
+  /// Calendário como atalho: lê/escreve no MESMO controller do campo de
+  /// texto (fonte única da data).
   Future<void> _pickBirthDate() async {
     final now = DateTime.now();
+    final firstDate = DateTime(_minBirthYear);
+    final lastDate = DateTime(now.year, now.month, now.day);
+    var initialDate = tryParseBrDate(_birthDateController.text) ??
+        DateTime(now.year - 2, now.month, now.day);
+    if (initialDate.isBefore(firstDate)) initialDate = firstDate;
+    if (initialDate.isAfter(lastDate)) initialDate = lastDate;
     final picked = await showDatePicker(
       context: context,
-      initialDate: _birthDate ?? DateTime(now.year - 1, now.month, now.day),
-      firstDate: DateTime(now.year - 30),
-      lastDate: now,
+      initialDate: initialDate,
+      firstDate: firstDate,
+      lastDate: lastDate,
       helpText: 'Data de nascimento',
     );
-    if (picked != null) setState(() => _birthDate = picked);
+    if (picked == null) return;
+    final formatted = formatBrDate(picked);
+    _birthDateController.value = TextEditingValue(
+      text: formatted,
+      selection: TextSelection.collapsed(offset: formatted.length),
+    );
+  }
+
+  String? _validateBirthDate(String? value) {
+    final text = value?.trim() ?? '';
+    if (text.isEmpty) return 'Informe a data de nascimento.';
+    final date = tryParseBrDate(text);
+    if (date == null) return 'Data inválida';
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    if (date.isAfter(today)) return 'A data não pode ser no futuro';
+    if (date.year < _minBirthYear) return 'Confira o ano';
+    return null;
   }
 
   void _submit(DogModel? editingDog) {
     FocusScope.of(context).unfocus();
     if (!_formKey.currentState!.validate()) return;
-    if (_birthDate == null) {
-      ScaffoldMessenger.of(context)
-        ..hideCurrentSnackBar()
-        ..showSnackBar(
-          const SnackBar(content: Text('Informe a data de nascimento.')),
-        );
-      return;
-    }
+    // O validator garante uma data completa e válida.
+    final birthDate = tryParseBrDate(_birthDateController.text);
+    if (birthDate == null) return;
     final cubit = context.read<MyDogsCubit>();
     final bio = _bioController.text.trim();
     if (editingDog == null) {
@@ -118,7 +142,7 @@ class _DogFormViewState extends State<_DogFormView> {
         name: _nameController.text.trim(),
         breed: _breedController.text.trim(),
         sex: _sex,
-        birthDate: _birthDate!,
+        birthDate: birthDate,
         size: _size,
         intent: _intent,
         bio: bio.isEmpty ? null : bio,
@@ -131,7 +155,7 @@ class _DogFormViewState extends State<_DogFormView> {
         name: _nameController.text.trim(),
         breed: _breedController.text.trim(),
         sex: _sex,
-        birthDate: _birthDate!,
+        birthDate: birthDate,
         size: _size,
         intent: _intent,
         bio: bio,
@@ -307,25 +331,20 @@ class _DogFormViewState extends State<_DogFormView> {
                           setState(() => _sex = selection.first),
                     ),
                     const SizedBox(height: 16),
-                    InkWell(
-                      onTap: _pickBirthDate,
-                      borderRadius: BorderRadius.circular(12),
-                      child: InputDecorator(
-                        decoration: const InputDecoration(
-                          labelText: 'Data de nascimento',
-                          prefixIcon: Icon(Icons.cake_outlined),
-                          suffixIcon: Icon(Icons.calendar_today_outlined),
-                        ),
-                        child: Text(
-                          _birthDate == null
-                              ? 'Toque para escolher'
-                              : DateFormat('dd/MM/yyyy', 'pt_BR')
-                                  .format(_birthDate!),
-                          style: _birthDate == null
-                              ? theme.textTheme.bodyLarge?.copyWith(
-                                  color: theme.colorScheme.onSurfaceVariant,
-                                )
-                              : theme.textTheme.bodyLarge,
+                    TextFormField(
+                      controller: _birthDateController,
+                      keyboardType: TextInputType.number,
+                      inputFormatters: [BrDateInputFormatter()],
+                      textInputAction: TextInputAction.next,
+                      validator: _validateBirthDate,
+                      decoration: InputDecoration(
+                        labelText: 'Data de nascimento',
+                        hintText: 'dd/mm/aaaa',
+                        prefixIcon: const Icon(Icons.cake_outlined),
+                        suffixIcon: IconButton(
+                          tooltip: 'Escolher no calendário',
+                          icon: const Icon(Icons.calendar_today_outlined),
+                          onPressed: _pickBirthDate,
                         ),
                       ),
                     ),
@@ -350,17 +369,18 @@ class _DogFormViewState extends State<_DogFormView> {
                     const SizedBox(height: 24),
                     Text('Intenção', style: theme.textTheme.titleSmall),
                     const SizedBox(height: 8),
-                    SegmentedButton<DogIntent>(
-                      segments: [
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 4,
+                      children: [
                         for (final intent in DogIntent.values)
-                          ButtonSegment(
-                            value: intent,
+                          ChoiceChip(
                             label: Text(intent.labelPtBr),
+                            selected: _intent == intent,
+                            onSelected: (_) =>
+                                setState(() => _intent = intent),
                           ),
                       ],
-                      selected: {_intent},
-                      onSelectionChanged: (selection) =>
-                          setState(() => _intent = selection.first),
                     ),
                     const SizedBox(height: 16),
                     AppTextField(
