@@ -236,6 +236,16 @@ Você **não monta esses endereços na mão** — o Coolify já os entrega pront
 3. Cole nas envs da API. Só ajuste o final da URL do Postgres para o schema:
    `...:5432/postgres?schema=public`.
 
+> **Sobre o `/postgres` no fim da URL**: é o nome do banco dentro do servidor (o
+> `dogmatch` do ambiente local veio do nosso compose). Pode manter o do Coolify —
+> nada no código depende desse nome e o Prisma cria as tabelas onde a URL apontar.
+> Se preferir um banco chamado `dogmatch`, defina `POSTGRES_DB=dogmatch` **antes do
+> primeiro deploy** do Postgres (depois de inicializado o volume, a variável é
+> ignorada) ou crie-o depois:
+> `docker exec -it postgresql-<uuid> psql -U postgres -c "CREATE DATABASE dogmatch;"`.
+> Atenção: `prisma migrate deploy` cria tabelas, **não bancos** — apontar para um
+> banco inexistente falha o deploy.
+
 > Alternativa: no terminal da VPS, `docker ps --format '{{.Names}}'` lista os
 > containers — os nomes com prefixo `postgresql-`/`redis-` são exatamente esses hosts.
 
