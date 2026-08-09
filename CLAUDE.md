@@ -60,6 +60,11 @@ Exemplos válidos: `feat(backend): perfil público do dono` ·
 
 - Documentação em PT-BR; código, identificadores e mensagens de erro da API em inglês;
   strings de UI do app em PT-BR.
+- **Comentários: só quando explicam uma restrição que o código não mostra** (ex.: "a
+  API recusa chave desconhecida", "não simplificar: o PaaS injeta X"). NÃO comentar
+  o que o código já diz, nem narrar a mudança para o revisor, nem citar histórico
+  ("agora usa…", "antes era…"). Código novo nasce sem comentário por padrão; na
+  dúvida, deixe de fora. O mesmo vale para docstrings óbvias.
 - Definition of done de qualquer tarefa: backend `lint + test + build` verdes;
   mobile `build_runner + analyze (zero issues) + test` verdes — o CI cobra exatamente isso.
 - UI nunca pressupõe conhecimento interno do app: rótulos autoexplicativos (nada de

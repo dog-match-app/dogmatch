@@ -195,7 +195,9 @@ paginação — exploração ativa, sem a mecânica de deck. Regras:
 | `orderBy` | `distance\|recent` | default: `distance` se o usuário tem localização, senão `recent` (`createdAt desc`). `distance` sem localização ⇒ 400 `LOCATION_REQUIRED` |
 | `page` / `limit` | int (default 1 / 20, máx 50) | paginação offset com `total`/`pageCount` |
 
-Sempre excluídos: cães do próprio usuário e inativos. `distanceKm` vem `null` quando
+Ao contrário do feed de swipe, a busca **inclui os cães do próprio usuário**,
+marcados com `isMine: true` (o app destaca no card e não oferece curtir/passar).
+Sempre excluídos: cães inativos. `distanceKm` vem `null` quando
 uma das partes não tem localização. Implementação: mesma abordagem do feed —
 `$queryRaw` com cláusulas `Prisma.sql` compostas (count + página) e enriquecimento
 (fotos, swipe/match da perspectiva) via Prisma preservando a ordem.
@@ -284,7 +286,8 @@ DiscoveryCardDto { dog: DogDto, distanceKm: number,
                    owner: { id, name, city?, avatarUrl? } }
 SearchCardDto  { dog: DogDto, distanceKm?: number|null,
                  owner: { id, name, city?, avatarUrl? },
-                 myAction?: 'LIKE'|'PASS'|null, matched?: boolean }
+                 myAction?: 'LIKE'|'PASS'|null, matched?: boolean,
+                 isMine: boolean }   // cão do próprio usuário
 SearchResultDto { items: SearchCardDto[], total, page, pageCount }
 SwipeResultDto { matched: boolean, match?: MatchDto }
 MatchDto       { id, createdAt, myDog: DogDto, otherDog: DogDto,
