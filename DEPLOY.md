@@ -221,14 +221,38 @@ com IP puro não funciona. Com domínio, fica assim:
     firewall (`sudo ufw allow 3333/tcp`). A API fica em `http://IP_DA_VPS:3333`.
     **Dentro do container nada muda**: `PORT=3000` permanece.
   - **Cenário B**: em **Domains**, `https://api.SEUDOMINIO.com`.
+### Onde achar os hosts internos do Postgres e do Redis
+
+Você **não monta esses endereços na mão** — o Coolify já os entrega prontos:
+
+1. Abra o recurso do **Postgres** no Coolify. Na aba principal há os campos
+   **"Postgres URL (internal)"** e "Postgres URL (external)". **Copie a internal** —
+   ela já vem completa, com usuário, senha, host e porta, algo como
+   `postgresql://postgres:SENHA@postgresql-abc123def456:5432/postgres`.
+   Esse `postgresql-abc123def456` é o nome do container (o sufixo é o UUID do
+   recurso) e funciona como hostname dentro da rede Docker.
+2. Mesma coisa no recurso do **Redis**: copie a **"Redis URL (internal)"**
+   (`redis://default:SENHA@redis-xyz789:6379`).
+3. Cole nas envs da API. Só ajuste o final da URL do Postgres para o schema:
+   `...:5432/postgres?schema=public`.
+
+> Alternativa: no terminal da VPS, `docker ps --format '{{.Names}}'` lista os
+> containers — os nomes com prefixo `postgresql-`/`redis-` são exatamente esses hosts.
+
+**⚠️ O erro mais comum**: a aplicação não enxerga o banco (`getaddrinfo ENOTFOUND`
+ou "connection refused") porque **aplicações e bancos ficam em redes Docker
+separadas** por padrão. Solução: na aplicação, aba **Advanced → ative "Connect to
+Predefined Network"** e redeploy. Com isso a API entra na rede compartilhada do
+Coolify e passa a resolver os nomes dos containers de banco.
+
 - **Environment Variables** (aba Environment):
 
 ```env
 NODE_ENV=production
 PORT=3000
-# host/credenciais internos mostrados pelo Coolify no recurso do Postgres:
-DATABASE_URL=postgresql://USUARIO:SENHA@HOST_INTERNO_DO_PG:5432/DB?schema=public
-REDIS_URL=redis://HOST_INTERNO_DO_REDIS:6379
+# copie as "URL (internal)" dos recursos (ver acima); exemplo do formato:
+DATABASE_URL=postgresql://postgres:SENHA@postgresql-abc123def456:5432/postgres?schema=public
+REDIS_URL=redis://default:SENHA@redis-xyz789:6379
 JWT_ACCESS_SECRET=<64+ chars aleatórios — openssl rand -hex 32>
 JWT_ACCESS_TTL=15m
 JWT_REFRESH_SECRET=<outro valor aleatório>
