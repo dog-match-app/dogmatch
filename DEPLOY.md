@@ -36,9 +36,20 @@ Crie um **Project** (ex.: `dogmatch`) e dentro dele:
 
 ### PostgreSQL + PostGIS
 - **+ New → Database → PostgreSQL**.
-- Em **Image**, troque para `postgis/postgis:16-3.4` (o discovery depende do PostGIS).
+- ⚠️ **Antes do primeiro deploy**, em **Image**, troque para uma imagem **PostGIS** —
+  ex.: `postgis/postgis:16-3.4`. O discovery e a busca por distância dependem da
+  extensão; com a imagem padrão do Postgres a migration inicial **falha** (veja
+  "Erro P3009" abaixo).
 - Anote usuário/senha/db gerados. **Não** exponha porta pública (a API acessa pela
   rede interna do Coolify).
+- Conferência rápida (terminal da VPS):
+
+  ```bash
+  docker exec -it <container-do-postgres> \
+    psql -U postgres -c "SELECT name FROM pg_available_extensions WHERE name='postgis';"
+  ```
+
+  Uma linha de resultado = imagem correta. Vazio = imagem sem PostGIS.
 
 ### Redis
 - **+ New → Database → Redis** (padrão já serve; sem porta pública).
@@ -355,6 +366,57 @@ build + reenvio (roadmap: Firebase App Distribution para automatizar).
 
 `git push` na `main` → o Coolify rebuilda e redeploya (ative o auto-deploy por
 webhook na aplicação). Migrations novas rodam sozinhas no boot.
+
+## 4.1 Erro `P3009` — "migrate found failed migrations"
+
+Sintoma: a API entra em loop de restart e o log repete
+`Error: P3009 ... The '20260808081705_init' migration started at ... failed`.
+
+**Causa quase sempre**: o Postgres não tem PostGIS. A migration inicial cria todas
+as tabelas e só no fim roda `CREATE EXTENSION postgis` — falhando ali, ela fica
+marcada como "failed" e o Prisma se recusa a aplicar qualquer migration seguinte,
+mesmo com as tabelas já criadas.
+
+Diagnóstico (terminal da VPS):
+
+```bash
+PG=$(docker ps --format '{{.Names}}' | grep -i postgres | head -1)
+
+# erro exato que abortou a migration:
+docker exec -it $PG psql -U postgres -c \
+  "SELECT migration_name, finished_at, left(logs,300) FROM _prisma_migrations ORDER BY started_at;"
+
+# postgis disponível? (vazio = imagem errada)
+docker exec -it $PG psql -U postgres -c \
+  "SELECT name FROM pg_available_extensions WHERE name='postgis';"
+
+# versão major, para escolher a tag certa da imagem:
+docker exec -it $PG postgres --version
+```
+
+Correção (banco ainda sem dados reais — caminho mais simples):
+
+1. No Coolify, no recurso do Postgres, troque **Image** para o PostGIS **da mesma
+   versão major** que já está rodando (ex.: PG 17 → `postgis/postgis:17-3.5`;
+   PG 16 → `postgis/postgis:16-3.4`). Usar uma major diferente da que criou o
+   volume faz o container não subir ("database files are incompatible").
+   Se a sua major não tiver imagem PostGIS, apague o recurso e crie outro já com
+   `postgis/postgis:16-3.4` — nesse caso o hostname muda, então atualize a
+   `DATABASE_URL` da API.
+2. Redeploy do Postgres e confira o `pg_available_extensions` acima.
+3. Limpe o estado sujo (apaga as tabelas parciais e o histórico de migrations):
+
+   ```bash
+   docker exec -it $PG psql -U postgres -c "DROP SCHEMA public CASCADE; CREATE SCHEMA public;"
+   ```
+
+4. Redeploy da API. O `migrate deploy` roda do zero e agora conclui.
+
+> Alternativa sem apagar nada (se o banco já tivesse dados): corrija a imagem, crie
+> a extensão e o índice à mão (o bloco final de
+> `prisma/migrations/20260808081705_init/migration.sql`) e marque a migration como
+> aplicada com `npx prisma migrate resolve --applied 20260808081705_init` no
+> terminal do container da API; depois redeploy.
 
 ## 5. Limites de memória (VPS de 8 GB → sistema todo ≤ 3 GB)
 
