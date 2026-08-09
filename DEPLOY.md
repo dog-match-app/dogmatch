@@ -9,7 +9,7 @@ Há dois cenários — escolha o seu:
 
 | | **A. Só o IP da VPS** (sem domínio) | **B. Com domínio próprio** |
 |---|---|---|
-| URLs | `http://IP:3333` (API) · `http://IP:9000` (fotos) | `https://api.seu.com` · `https://media.seu.com` |
+| URLs | `http://IP:3333` (API) · fotos: `https://pub-….r2.dev` (R2) ou `http://IP:9000` (MinIO) | `https://api.seu.com` · `https://media.seu.com` |
 | HTTPS | ❌ não confiável sem domínio (Let's Encrypt não emite para IP puro, e domínios `sslip.io` vivem estourando o rate limit global) | ✅ automático pelo Coolify |
 | Exposição | portas mapeadas direto no container | proxy (Traefik) por domínio |
 | Uso | testes com amigos | qualquer coisa mais séria |
@@ -43,22 +43,86 @@ Crie um **Project** (ex.: `dogmatch`) e dentro dele:
 ### Redis
 - **+ New → Database → Redis** (padrão já serve; sem porta pública).
 
-### MinIO (fotos)
-- **+ New → Service → MinIO**. Anote `MINIO_ROOT_USER`/`MINIO_ROOT_PASSWORD`.
-- **Cenário A (só IP)**: em **Ports Mappings** do serviço, mapeie `9000:9000`
-  (API S3 pública em `http://IP_DA_VPS:9000`). Libere a porta no firewall da VPS
-  (`sudo ufw allow 9000/tcp` e/ou no painel do provedor). Se a 9000 já estiver
-  em uso na VPS, use outra no lado do host (ex.: `9002:9000`) e ajuste
-  `S3_ENDPOINT`/`S3_PUBLIC_URL` para `:9002`.
-- **Cenário B (domínio)**: defina um FQDN público para a porta 9000 — ex.:
-  `https://media.SEUDOMINIO.com` (certificado automático).
-- Depois de subir, abra o console do MinIO (porta 9001 — exponha temporariamente
-  ou use um túnel SSH `ssh -L 9001:localhost:9001 usuario@IP`), crie o bucket
-  **`dogmatch-media`** e marque leitura anônima (*Access Policy → download*) —
-  mesmo papel do `minio-setup` local.
+### Armazenamento de fotos (S3)
 
-> Alternativa sem MinIO: qualquer S3 (AWS, Cloudflare R2, Backblaze) — R2 tem
-> HTTPS público de graça e resolve as fotos mesmo no cenário A. Só ajuste as `S3_*`.
+> O template de MinIO **foi removido do catálogo do Coolify** ("service removed
+> from Coolify's one-click service catalog"). Duas rotas, ambas compatíveis com o
+> código sem nenhuma mudança (o backend usa o SDK S3 padrão):
+
+**Opção 1 — Cloudflare R2 (recomendada)**: grátis até 10 GB, não gasta a RAM da
+VPS e as fotos saem com **HTTPS mesmo no cenário A**.
+
+1. Crie uma conta na Cloudflare → **R2 Object Storage** → *Create bucket* →
+   nome `dogmatch-media`.
+2. No bucket, aba *Settings* → **Public access → Allow (r2.dev subdomain)** —
+   anote a URL pública (`https://pub-XXXX.r2.dev`).
+3. Em *R2 → API Tokens* (ou *Manage API tokens*), crie um token **Object Read &
+   Write** restrito ao bucket — anote `Access Key ID`, `Secret Access Key` e o
+   endpoint S3 da conta (`https://<ACCOUNT_ID>.r2.cloudflarestorage.com`).
+4. Envs correspondentes na API (usadas na seção 2):
+
+   ```env
+   S3_ENDPOINT=https://<ACCOUNT_ID>.r2.cloudflarestorage.com
+   S3_REGION=auto
+   S3_ACCESS_KEY=<Access Key ID>
+   S3_SECRET_KEY=<Secret Access Key>
+   S3_BUCKET=dogmatch-media
+   S3_PUBLIC_URL=https://pub-XXXX.r2.dev
+   ```
+
+   O upload presigned vai direto do celular para a Cloudflare (HTTPS); a leitura
+   pública sai pela URL `r2.dev`.
+
+**Opção 2 — MinIO por conta própria** (tudo na VPS): a imagem Docker continua
+disponível; suba-a como **+ New → Docker Compose** colando:
+
+```yaml
+services:
+  minio:
+    # tag fixada: último ciclo de releases com console web completo
+    image: minio/minio:RELEASE.2025-04-22T22-12-26Z
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: dogmatch
+      MINIO_ROOT_PASSWORD: TROQUE-ESTA-SENHA
+    ports:
+      - "9000:9000"   # se a 9000 estiver ocupada na VPS: "9002:9000" (e ajuste as envs S3_*)
+    volumes:
+      - minio_data:/data
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+  minio-setup:
+    image: minio/mc
+    depends_on:
+      minio:
+        condition: service_healthy
+    environment:
+      MINIO_ROOT_USER: dogmatch
+      MINIO_ROOT_PASSWORD: TROQUE-ESTA-SENHA
+    entrypoint: >
+      /bin/sh -c "
+      mc alias set local http://minio:9000 $$MINIO_ROOT_USER $$MINIO_ROOT_PASSWORD &&
+      mc mb --ignore-existing local/dogmatch-media &&
+      mc anonymous set download local/dogmatch-media"
+volumes:
+  minio_data:
+```
+
+O `minio-setup` cria o bucket com leitura pública e sai. Libere a porta escolhida
+no firewall (`sudo ufw allow 9000/tcp`) e use nas envs:
+`S3_ENDPOINT=http://IP_DA_VPS:9000` · `S3_PUBLIC_URL=http://IP_DA_VPS:9000/dogmatch-media`
+(no cenário B: FQDN público na porta 9000 e URLs `https`). Se a tag fixada sumir,
+qualquer `RELEASE.2025-04*` de hub.docker.com/r/minio/minio/tags serve.
+
+> Outras alternativas self-hosted ativas, se preferir fugir do MinIO: Garage
+> (leve, ótimo p/ VPS pequena) e SeaweedFS — ambos S3-compatible.
 
 ## 2. A API
 
@@ -84,18 +148,19 @@ JWT_ACCESS_SECRET=<64+ chars aleatórios — openssl rand -hex 32>
 JWT_ACCESS_TTL=15m
 JWT_REFRESH_SECRET=<outro valor aleatório>
 JWT_REFRESH_TTL=30d
-# S3_ENDPOINT/S3_PUBLIC_URL: SEMPRE o endereço que o CELULAR alcança — a URL
-# presigned embute esse host (mesma lição do localhost no dev):
-#   Cenário A:
-S3_ENDPOINT=http://IP_DA_VPS:9000
-S3_PUBLIC_URL=http://IP_DA_VPS:9000/dogmatch-media
-#   Cenário B (troque as duas acima por):
-# S3_ENDPOINT=https://media.SEUDOMINIO.com
-# S3_PUBLIC_URL=https://media.SEUDOMINIO.com/dogmatch-media
-S3_REGION=us-east-1
-S3_ACCESS_KEY=<MINIO_ROOT_USER>
-S3_SECRET_KEY=<MINIO_ROOT_PASSWORD>
+# Bloco S3_*: copie da opção de storage escolhida na seção 1 (R2 ou MinIO).
+# Regra de ouro: S3_ENDPOINT/S3_PUBLIC_URL usam SEMPRE um endereço que o
+# CELULAR alcança — a URL presigned embute esse host (lição do localhost no dev).
+#   R2:    S3_ENDPOINT=https://<ACCOUNT_ID>.r2.cloudflarestorage.com · S3_REGION=auto
+#          S3_PUBLIC_URL=https://pub-XXXX.r2.dev
+#   MinIO: S3_ENDPOINT=http://IP_DA_VPS:9000 · S3_REGION=us-east-1
+#          S3_PUBLIC_URL=http://IP_DA_VPS:9000/dogmatch-media
+S3_ENDPOINT=<da opção escolhida>
+S3_REGION=<da opção escolhida>
+S3_ACCESS_KEY=<da opção escolhida>
+S3_SECRET_KEY=<da opção escolhida>
 S3_BUCKET=dogmatch-media
+S3_PUBLIC_URL=<da opção escolhida>
 CORS_ORIGINS=*
 THROTTLE_TTL=60000
 THROTTLE_LIMIT=100
@@ -141,7 +206,7 @@ Orçamento recomendado (soma dos limites ≈ **2,5 GB**, sobrando folga dentro d
 | API (NestJS) | **768M** | env `NODE_OPTIONS=--max-old-space-size=512` (heap do Node em 512 MB; o resto é margem p/ buffers) |
 | PostgreSQL | **1G** | conf abaixo (Postgres não enxerga o limite do cgroup sozinho) |
 | Redis | **256M** | `maxmemory 200mb` + `maxmemory-policy noeviction` |
-| MinIO | **512M** | — |
+| MinIO | **512M** | — (apenas se auto-hospedado; com R2 esta linha some e o total cai para ~2 GB) |
 
 Como aplicar no Coolify:
 
