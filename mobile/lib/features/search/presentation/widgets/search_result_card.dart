@@ -15,7 +15,11 @@ class SearchCardBadge extends StatelessWidget {
     final String label;
     final Color background;
     final Color foreground;
-    if (card.isMatched) {
+    if (card.isMine) {
+      label = 'Seu cão 🦴';
+      background = scheme.secondaryContainer;
+      foreground = scheme.onSecondaryContainer;
+    } else if (card.isMatched) {
       label = 'Match 🐾';
       background = scheme.primaryContainer;
       foreground = scheme.onPrimaryContainer;
@@ -59,6 +63,13 @@ class SearchResultCard extends StatelessWidget {
     return Card(
       margin: EdgeInsets.zero,
       clipBehavior: Clip.antiAlias,
+      color: card.isMine ? theme.colorScheme.secondaryContainer : null,
+      shape: card.isMine
+          ? RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+              side: BorderSide(color: theme.colorScheme.secondary, width: 1.5),
+            )
+          : null,
       child: InkWell(
         onTap: onTap,
         child: Padding(
@@ -91,7 +102,7 @@ class SearchResultCard extends StatelessWidget {
                             overflow: TextOverflow.ellipsis,
                           ),
                         ),
-                        if (card.isMatched || card.isLiked) ...[
+                        if (card.isMine || card.isMatched || card.isLiked) ...[
                           const SizedBox(width: 8),
                           SearchCardBadge(card: card),
                         ],

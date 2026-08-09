@@ -14,6 +14,7 @@ class SearchCardModel extends Equatable {
     required this.owner,
     this.myAction,
     this.matched,
+    this.isMine = false,
   });
 
   factory SearchCardModel.fromJson(Map<String, dynamic> json) =>
@@ -34,6 +35,9 @@ class SearchCardModel extends Equatable {
   final String? myAction;
 
   final bool? matched;
+
+  @JsonKey(defaultValue: false)
+  final bool isMine;
 
   bool get isMatched => matched ?? false;
 
@@ -66,11 +70,12 @@ class SearchCardModel extends Equatable {
       owner: owner,
       myAction: myAction ?? this.myAction,
       matched: matched ?? this.matched,
+      isMine: isMine,
     );
   }
 
   Map<String, dynamic> toJson() => _$SearchCardModelToJson(this);
 
   @override
-  List<Object?> get props => [dog, distanceKm, owner, myAction, matched];
+  List<Object?> get props => [dog, distanceKm, owner, myAction, matched, isMine];
 }

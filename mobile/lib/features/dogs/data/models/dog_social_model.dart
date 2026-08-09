@@ -28,10 +28,8 @@ class DogSocialModel extends Equatable {
 
   Map<String, dynamic> toJson() => _$DogSocialModelToJson(this);
 
-  /// Corpo de `POST /dogs` e `PATCH /dogs/:id`: as redes vão como **campos
-  /// soltos** (ARCHITECTURE §4) — a API recusa chaves desconhecidas, então
-  /// enviar um objeto `social` aninhado resulta em 400. As chaves nulas vão
-  /// de propósito: no PATCH, `null` limpa a rede correspondente.
+  /// Campos soltos do corpo de `POST /dogs` e `PATCH /dogs/:id`: a API recusa
+  /// um objeto `social` aninhado (400). No PATCH, `null` limpa a rede.
   Map<String, dynamic> toRequestFields() => <String, dynamic>{
         'whatsapp': whatsapp,
         'instagram': instagram,

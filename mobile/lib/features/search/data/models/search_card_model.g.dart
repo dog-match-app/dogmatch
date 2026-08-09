@@ -13,6 +13,7 @@ SearchCardModel _$SearchCardModelFromJson(Map<String, dynamic> json) =>
       owner: DogOwnerModel.fromJson(json['owner'] as Map<String, dynamic>),
       myAction: json['myAction'] as String?,
       matched: json['matched'] as bool?,
+      isMine: json['isMine'] as bool? ?? false,
     );
 
 Map<String, dynamic> _$SearchCardModelToJson(SearchCardModel instance) =>
@@ -22,4 +23,5 @@ Map<String, dynamic> _$SearchCardModelToJson(SearchCardModel instance) =>
       'owner': instance.owner.toJson(),
       'myAction': ?instance.myAction,
       'matched': ?instance.matched,
+      'isMine': instance.isMine,
     };
