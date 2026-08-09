@@ -130,9 +130,14 @@ backend/src/
 
 ### 3.4 Upload de fotos
 
-1. App chama `POST /api/v1/files/presigned-upload` `{ contentType, folder }` (`avatars` | `dogs`).
-2. API valida contentType (`image/jpeg|png|webp`), gera key `folder/uuid.ext` e assina PUT (300s).
-3. App faz `PUT` do binário direto na URL assinada.
+1. App chama `POST /api/v1/files/presigned-upload` `{ contentType, folder, contentLength }`
+   (`avatars` | `dogs`).
+2. API valida contentType (`image/jpeg|png|webp`) e **contentLength** (1 byte a
+   **20 MB** — acima disso 400), gera key `folder/uuid.ext` e assina PUT (300s).
+3. App faz `PUT` do binário direto na URL assinada, com `Content-Length` **igual ao
+   declarado** — o header entra na assinatura, então o storage rejeita (403) qualquer
+   corpo de tamanho diferente. É isso que impede upload maior que o teto mesmo que
+   alguém monte a requisição fora do app.
 4. App registra a foto (`POST /dogs/:id/photos { key }` ou `PATCH /users/me { avatarUrl }`).
 5. Bucket `dogmatch-media` tem leitura pública (download) — URLs finais `S3_PUBLIC_URL/key`.
 
@@ -304,7 +309,7 @@ OwnerProfileDto { id, name, bio?, avatarUrl?, city?, memberSince,
 | GET | `/users/me` | ✔ | — | `UserDto` (inclui `dogs`) |
 | PATCH | `/users/me` | ✔ | `{ name?, bio?, phone?, city?, latitude?, longitude?, avatarUrl? }` | `UserDto` |
 | GET | `/users/:id/profile` | ✔ | — | `OwnerProfileDto` (cães ativos; `distanceKm` se ambos têm localização; `stats.matches` = matches dos cães do dono) |
-| POST | `/files/presigned-upload` | ✔ | `{ contentType, folder: 'avatars'\|'dogs' }` | `PresignedUploadDto` |
+| POST | `/files/presigned-upload` | ✔ | `{ contentType, folder: 'avatars'\|'dogs', contentLength: 1..20971520 }` | `PresignedUploadDto` |
 | GET | `/dogs/mine` | ✔ | — | `DogDto[]` |
 | POST | `/dogs` | ✔ | `{ name, breed, sex, birthDate, size, intent, bio?, neutered?, pedigree?, whatsapp?, instagram?, pinterest?, telegram? }` | 201 `DogDto` |
 | GET | `/dogs/:id` | ✔ | — | `DogDto` + `owner: { id, name, city?, avatarUrl? }` |

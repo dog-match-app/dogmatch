@@ -62,6 +62,10 @@ npx prisma studio     # inspecionar o banco
 - Só **presigned PUT** (300s) — a API nunca proxeia bytes de imagem. ContentType em
   allowlist (`image/jpeg|png|webp`); key gerada no servidor (`folder/uuid.ext`),
   nunca aceita do cliente. Folders válidos: `avatars`, `dogs`.
+- **Teto de tamanho** (`MAX_UPLOAD_BYTES`, 20 MB): o cliente declara `contentLength`,
+  o DTO valida o teto e a URL é assinada com `content-length` em `signableHeaders` —
+  o storage recusa (403) corpo de tamanho diferente. Mexeu no teto? Atualize o
+  espelho `maxUploadBytes` no app e o ARCHITECTURE §3.4.
 
 ### dogs
 - Mutação só pelo dono (403 via service). Máx **6 fotos** por cão (400). `birthDate`

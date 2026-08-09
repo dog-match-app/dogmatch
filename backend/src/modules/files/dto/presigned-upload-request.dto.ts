@@ -1,5 +1,9 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsIn } from 'class-validator';
+import { Type } from 'class-transformer';
+import { IsIn, IsInt, Max, Min } from 'class-validator';
+
+/** Hard cap per upload; the signed URL is bound to the declared size. */
+export const MAX_UPLOAD_BYTES = 20 * 1024 * 1024;
 
 export const ALLOWED_CONTENT_TYPES = [
   'image/jpeg',
@@ -19,4 +23,16 @@ export class PresignedUploadRequestDto {
   @ApiProperty({ enum: ALLOWED_FOLDERS })
   @IsIn(ALLOWED_FOLDERS)
   folder!: AllowedFolder;
+
+  @ApiProperty({
+    minimum: 1,
+    maximum: MAX_UPLOAD_BYTES,
+    description:
+      'Exact size in bytes of the file. The signed URL only accepts a body of this size.',
+  })
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(MAX_UPLOAD_BYTES)
+  contentLength!: number;
 }

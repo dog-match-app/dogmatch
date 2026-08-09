@@ -48,8 +48,14 @@ export class FilesService {
         Bucket: this.bucket,
         Key: key,
         ContentType: dto.contentType,
+        ContentLength: dto.contentLength,
       }),
-      { expiresIn: UPLOAD_URL_TTL_SECONDS },
+      {
+        expiresIn: UPLOAD_URL_TTL_SECONDS,
+        // content-length in the signature: the storage rejects a body of any
+        // other size, so the DTO cap is enforced end to end.
+        signableHeaders: new Set(['content-length']),
+      },
     );
     return {
       uploadUrl,
