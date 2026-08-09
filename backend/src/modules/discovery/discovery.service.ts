@@ -162,10 +162,7 @@ export class DiscoveryService {
     const limit = query.limit ?? 20;
     const now = new Date();
 
-    const clauses: Prisma.Sql[] = [
-      Prisma.sql`d.active = true`,
-      Prisma.sql`d.owner_id <> ${userId}::uuid`,
-    ];
+    const clauses: Prisma.Sql[] = [Prisma.sql`d.active = true`];
     if (query.q !== undefined) {
       const pattern = `%${query.q}%`;
       clauses.push(
@@ -311,8 +308,9 @@ export class DiscoveryService {
           city: candidate.owner.city,
           avatarUrl: candidate.owner.avatarUrl,
         },
+        isMine: candidate.ownerId === userId,
       };
-      if (query.dogId) {
+      if (query.dogId && !card.isMine) {
         card.myAction = actionByDogId?.get(row.id) ?? null;
         card.matched = matchedDogIds?.has(row.id) ?? false;
       }

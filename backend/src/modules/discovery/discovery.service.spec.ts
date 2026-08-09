@@ -168,11 +168,38 @@ describe('DiscoveryService (search)', () => {
     expect(result.items[0].distanceKm).toBe(1.2);
     expect(result.items[1].distanceKm).toBeNull();
     expect(result.items[0].owner.id).toBe(OTHER_USER_ID);
+    expect(result.items[0].isMine).toBe(false);
     expect(result.items[0].myAction).toBeUndefined();
     expect(result.items[0].matched).toBeUndefined();
     expect(prismaMock.$queryRaw).toHaveBeenCalledTimes(2);
     expect(prismaMock.swipe.findMany).not.toHaveBeenCalled();
     expect(prismaMock.match.findMany).not.toHaveBeenCalled();
+  });
+
+  it('includes the caller own dogs flagged with isMine and no swipe state', async () => {
+    prismaMock.dog.findUnique.mockResolvedValue(
+      makeDog(MY_DOG_ID, USER_ID, 'Thor'),
+    );
+    prismaMock.$queryRaw
+      .mockResolvedValueOnce([{ count: 2 }])
+      .mockResolvedValueOnce([
+        { id: MY_DOG_ID, distance_m: 0 },
+        { id: TARGET_1, distance_m: 900 },
+      ]);
+    prismaMock.dog.findMany.mockResolvedValue([
+      makeDog(MY_DOG_ID, USER_ID, 'Thor'),
+      makeDog(TARGET_1, OTHER_USER_ID, 'Rex'),
+    ]);
+    prismaMock.swipe.findMany.mockResolvedValue([]);
+    prismaMock.match.findMany.mockResolvedValue([]);
+
+    const result = await service.search(USER_ID, { dogId: MY_DOG_ID });
+
+    expect(result.items[0].isMine).toBe(true);
+    expect(result.items[0].myAction).toBeUndefined();
+    expect(result.items[0].matched).toBeUndefined();
+    expect(result.items[1].isMine).toBe(false);
+    expect(result.items[1].matched).toBe(false);
   });
 
   it('fills myAction and matched from the dogId perspective', async () => {

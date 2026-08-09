@@ -31,6 +31,9 @@ export class SearchCardDto {
       'Whether dogId and this dog already matched (present only when dogId is sent)',
   })
   matched?: boolean;
+
+  @ApiProperty({ description: 'Whether this dog belongs to the caller' })
+  isMine!: boolean;
 }
 
 export class SearchResultDto {
