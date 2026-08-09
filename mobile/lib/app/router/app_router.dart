@@ -8,6 +8,7 @@ import 'package:dogmatch/features/chat/presentation/pages/chat_page.dart';
 import 'package:dogmatch/features/discovery/presentation/pages/discovery_page.dart';
 import 'package:dogmatch/features/dogs/data/models/dog_model.dart';
 import 'package:dogmatch/features/dogs/data/models/dog_post_model.dart';
+import 'package:dogmatch/features/dogs/presentation/pages/caption_editor_page.dart';
 import 'package:dogmatch/features/dogs/presentation/pages/dog_form_page.dart';
 import 'package:dogmatch/features/dogs/presentation/pages/dog_post_composer_page.dart';
 import 'package:dogmatch/features/dogs/presentation/pages/dog_posts_manager_page.dart';
@@ -105,6 +106,15 @@ GoRouter buildAppRouter(AuthBloc authBloc) {
           dogId: state.pathParameters['id']!,
           postId: state.pathParameters['postId']!,
           initialPost: state.extra as DogPostModel?,
+        ),
+      ),
+      // Editor de legendas em tela cheia (extra: CaptionEditorArgs); devolve
+      // a lista editada ao composer via pop.
+      GoRoute(
+        path: '/caption-editor',
+        builder: (context, state) => CaptionEditorPage(
+          args: state.extra as CaptionEditorArgs? ??
+              const CaptionEditorArgs(captions: []),
         ),
       ),
       GoRoute(

@@ -2,13 +2,16 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:dogmatch/app/di/injection.dart';
 import 'package:dogmatch/core/network/file_uploader.dart';
 import 'package:dogmatch/core/utils/telegram_text.dart';
+import 'package:dogmatch/core/widgets/contained_image.dart';
 import 'package:dogmatch/core/widgets/empty_state.dart';
 import 'package:dogmatch/core/widgets/loading_indicator.dart';
 import 'package:dogmatch/core/widgets/primary_button.dart';
 import 'package:dogmatch/features/dogs/data/models/dog_post_model.dart';
+import 'package:dogmatch/features/dogs/domain/entities/dog_post_draft.dart';
 import 'package:dogmatch/features/dogs/domain/entities/dog_post_rules.dart';
 import 'package:dogmatch/features/dogs/domain/entities/dog_post_type.dart';
 import 'package:dogmatch/features/dogs/presentation/cubit/dog_post_composer_cubit.dart';
+import 'package:dogmatch/features/dogs/presentation/pages/caption_editor_page.dart';
 import 'package:dogmatch/features/dogs/presentation/widgets/dog_post_card.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -18,7 +21,7 @@ import 'package:image_picker/image_picker.dart';
 /// Composer de post da página do cão: criação (`/dogs/:id/posts/new`) e
 /// edição (`/dogs/:id/posts/:postId/edit`, post via extra — sem extra, busca
 /// na lista). Tipo imutável na edição; upload presigned na seleção; legendas
-/// posicionadas tocando na imagem (CAROUSEL).
+/// posicionadas pelo [CaptionEditorPage] em qualquer tipo com imagem.
 class DogPostComposerPage extends StatelessWidget {
   const DogPostComposerPage({
     super.key,
@@ -106,86 +109,29 @@ class _ComposerViewState extends State<_ComposerView> {
     );
   }
 
-  /// Dialog de texto da legenda (criação e edição). Devolve `null` no
-  /// cancelamento e string vazia quando o dono pediu para remover.
-  Future<String?> _captionDialog({String? initialText}) {
-    final controller = TextEditingController(text: initialText ?? '');
-    return showDialog<String>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: Text(initialText == null ? 'Nova legenda' : 'Editar legenda'),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          maxLength: maxCaptionLength,
-          maxLines: 3,
-          minLines: 1,
-          textCapitalization: TextCapitalization.sentences,
-          decoration: const InputDecoration(
-            labelText: 'Legenda',
-            hintText: 'O que aparece neste ponto da foto?',
-          ),
-        ),
-        actions: [
-          if (initialText != null)
-            TextButton(
-              style: TextButton.styleFrom(
-                foregroundColor: Theme.of(dialogContext).colorScheme.error,
-              ),
-              onPressed: () => Navigator.of(dialogContext).pop(''),
-              child: const Text('Remover'),
-            ),
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(),
-            child: const Text('Cancelar'),
-          ),
-          ValueListenableBuilder(
-            valueListenable: controller,
-            builder: (_, value, _) => FilledButton(
-              onPressed: value.text.trim().isEmpty
-                  ? null
-                  : () =>
-                      Navigator.of(dialogContext).pop(value.text.trim()),
-              child: const Text('Salvar'),
-            ),
-          ),
-        ],
-      ),
-    ).whenComplete(controller.dispose);
-  }
-
-  Future<void> _addCaptionAt(int imageIndex, Offset normalized) async {
+  /// Abre o editor de legendas em tela cheia e grava o resultado no cubit
+  /// (fonte da verdade do draft).
+  Future<void> _openCaptionEditor(int imageIndex) async {
     final cubit = context.read<DogPostComposerCubit>();
     final image = cubit.state.images.elementAtOrNull(imageIndex);
     if (image == null) return;
-    if (image.captions.length >= maxCaptionsPerImage) {
-      _showSnackBar('Máximo de $maxCaptionsPerImage legendas por imagem');
+    if (image.uploading) {
+      _showSnackBar('Aguarde o envio da imagem.');
       return;
     }
-    final text = await _captionDialog();
-    if (text == null || text.isEmpty) return;
-    cubit.addCaption(
-      imageIndex,
-      text: text,
-      x: normalized.dx,
-      y: normalized.dy,
+    final images = cubit.state.images;
+    final result = await context.push<List<DogPostDraftCaption>>(
+      '/caption-editor',
+      extra: CaptionEditorArgs(
+        captions: image.captions,
+        bytes: image.bytes,
+        url: image.url,
+        imageLabel: images.length > 1
+            ? 'Imagem ${imageIndex + 1} de ${images.length}'
+            : null,
+      ),
     );
-  }
-
-  Future<void> _editCaption(int imageIndex, int captionIndex) async {
-    final cubit = context.read<DogPostComposerCubit>();
-    final caption = cubit.state.images
-        .elementAtOrNull(imageIndex)
-        ?.captions
-        .elementAtOrNull(captionIndex);
-    if (caption == null) return;
-    final text = await _captionDialog(initialText: caption.text);
-    if (text == null) return;
-    if (text.isEmpty) {
-      cubit.removeCaption(imageIndex, captionIndex);
-    } else {
-      cubit.updateCaption(imageIndex, captionIndex, text);
-    }
+    if (result != null) cubit.setCaptions(imageIndex, result);
   }
 
   void _showFormattingHelp() {
@@ -345,14 +291,27 @@ class _ComposerViewState extends State<_ComposerView> {
                         state.type == DogPostType.imageText) ...[
                       const SizedBox(height: 24),
                       Text('Imagem', style: theme.textTheme.titleSmall),
-                      const SizedBox(height: 8),
-                      _SingleImageEditor(
-                        image: state.images.firstOrNull,
-                        onPick: _pickImage,
-                        onRemove: () => context
-                            .read<DogPostComposerCubit>()
-                            .removeImage(0),
+                      const SizedBox(height: 4),
+                      Text(
+                        'A foto aparece inteira no post e aceita até '
+                        '$maxCaptionsPerImage legendas marcadas em pontos '
+                        'dela.',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
                       ),
+                      const SizedBox(height: 8),
+                      if (state.images.firstOrNull case final image?)
+                        _ComposerImageEditor(
+                          image: image,
+                          onCaptions: () => _openCaptionEditor(0),
+                          onPick: _pickImage,
+                          onRemove: () => context
+                              .read<DogPostComposerCubit>()
+                              .removeImage(0),
+                        )
+                      else
+                        _AddImagePlaceholder(onTap: _pickImage),
                     ],
                     if (state.type == DogPostType.carousel) ...[
                       const SizedBox(height: 24),
@@ -363,22 +322,22 @@ class _ComposerViewState extends State<_ComposerView> {
                       const SizedBox(height: 4),
                       Text(
                         'De $minCarouselImages a $maxCarouselImages imagens. '
-                        'Toque na imagem para adicionar uma legenda no ponto '
-                        'tocado.',
+                        'Cada foto aparece inteira e aceita até '
+                        '$maxCaptionsPerImage legendas marcadas em pontos '
+                        'dela.',
                         style: theme.textTheme.bodySmall?.copyWith(
                           color: theme.colorScheme.onSurfaceVariant,
                         ),
                       ),
                       const SizedBox(height: 12),
                       for (var i = 0; i < state.images.length; i++) ...[
-                        _CarouselImageEditor(
+                        _ComposerImageEditor(
                           image: state.images[i],
+                          label: 'Imagem ${i + 1} de ${state.images.length}',
+                          onCaptions: () => _openCaptionEditor(i),
                           onRemove: () => context
                               .read<DogPostComposerCubit>()
                               .removeImage(i),
-                          onTapAt: (normalized) => _addCaptionAt(i, normalized),
-                          onCaptionTap: (captionIndex) =>
-                              _editCaption(i, captionIndex),
                         ),
                         const SizedBox(height: 16),
                       ],
@@ -421,26 +380,13 @@ class _ComposerViewState extends State<_ComposerView> {
   }
 }
 
-/// Preview de uma [ComposerImage]: bytes locais (recém-escolhida) ou URL
-/// remota (post em edição), com fallback neutro.
-Widget _composerImagePreview(BuildContext context, ComposerImage image) {
-  final theme = Theme.of(context);
+/// Fonte da imagem de uma [ComposerImage]: bytes locais (recém-escolhida) ou
+/// URL remota (post em edição). `null` enquanto nenhuma das duas existe.
+ImageProvider? _composerImageProvider(ComposerImage image) {
   final bytes = image.bytes;
-  if (bytes != null) return Image.memory(bytes, fit: BoxFit.cover);
+  if (bytes != null) return MemoryImage(bytes);
   final url = image.url;
-  if (url != null) {
-    return CachedNetworkImage(
-      imageUrl: url,
-      fit: BoxFit.cover,
-      placeholder: (_, _) =>
-          ColoredBox(color: theme.colorScheme.surfaceContainerHighest),
-      errorWidget: (_, _, _) => ColoredBox(
-        color: theme.colorScheme.surfaceContainerHighest,
-        child: const Icon(Icons.broken_image_outlined),
-      ),
-    );
-  }
-  return ColoredBox(color: theme.colorScheme.surfaceContainerHighest);
+  return url == null ? null : CachedNetworkImageProvider(url);
 }
 
 /// Overlay de progresso do upload presigned da imagem.
@@ -466,74 +412,80 @@ class _UploadingOverlay extends StatelessWidget {
   }
 }
 
-/// Botão circular de remover no canto da imagem (padrão do _PhotoGrid).
-class _RemoveImageButton extends StatelessWidget {
-  const _RemoveImageButton({required this.onTap});
+/// Área tocável de "Adicionar imagem" (nenhuma imagem escolhida ainda).
+class _AddImagePlaceholder extends StatelessWidget {
+  const _AddImagePlaceholder({required this.onTap});
 
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Positioned(
-      top: 8,
-      right: 8,
-      child: InkWell(
-        onTap: onTap,
-        child: CircleAvatar(
-          radius: 16,
-          backgroundColor: theme.colorScheme.surface.withValues(alpha: 0.85),
-          child: Icon(Icons.close, size: 18, color: theme.colorScheme.error),
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        height: 180,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: theme.colorScheme.outlineVariant),
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.add_photo_alternate_outlined,
+              size: 40,
+              color: theme.colorScheme.primary,
+            ),
+            const SizedBox(height: 8),
+            const Text('Adicionar imagem'),
+          ],
         ),
       ),
     );
   }
 }
 
-/// Editor da imagem única (IMAGE / IMAGE_TEXT): adicionar, trocar, remover.
-class _SingleImageEditor extends StatelessWidget {
-  const _SingleImageEditor({
+/// Uma imagem do draft (qualquer tipo com imagem): preview com a foto
+/// INTEIRA — o mesmo enquadramento do post, para o ponto marcado bater com o
+/// que será salvo —, marcadores das legendas e ações. Tocar no preview ou no
+/// botão "Legendas" abre o editor de tela cheia.
+class _ComposerImageEditor extends StatelessWidget {
+  const _ComposerImageEditor({
     required this.image,
-    required this.onPick,
+    required this.onCaptions,
     required this.onRemove,
+    this.label,
+    this.onPick,
   });
 
-  final ComposerImage? image;
-  final VoidCallback onPick;
+  final ComposerImage image;
+  final VoidCallback onCaptions;
   final VoidCallback onRemove;
+  final String? label;
+
+  /// Só nos tipos de imagem única, onde escolher outra foto substitui a atual.
+  final VoidCallback? onPick;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final current = image;
-    if (current == null) {
-      return InkWell(
-        onTap: onPick,
-        borderRadius: BorderRadius.circular(16),
-        child: Container(
-          height: 180,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: theme.colorScheme.outlineVariant),
-          ),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                Icons.add_photo_alternate_outlined,
-                size: 40,
-                color: theme.colorScheme.primary,
-              ),
-              const SizedBox(height: 8),
-              const Text('Adicionar imagem'),
-            ],
-          ),
-        ),
-      );
-    }
+    final provider = _composerImageProvider(image);
+    final captions = image.captions;
+    final pick = onPick;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        if (label case final text?) ...[
+          Text(
+            text,
+            style: theme.textTheme.labelLarge?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(height: 4),
+        ],
         ClipRRect(
           borderRadius: BorderRadius.circular(16),
           child: AspectRatio(
@@ -541,108 +493,57 @@ class _SingleImageEditor extends StatelessWidget {
             child: Stack(
               fit: StackFit.expand,
               children: [
-                _composerImagePreview(context, current),
-                if (current.uploading) const _UploadingOverlay(),
+                if (provider == null)
+                  ColoredBox(color: theme.colorScheme.surfaceContainerHighest)
+                else
+                  GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: image.uploading ? null : onCaptions,
+                    child: ContainedImage(
+                      provider: provider,
+                      overlayBuilder: (context, geometry) => [
+                        for (final caption in captions)
+                          positionCaptionMarker(
+                            anchor: geometry.anchorOf(caption.x, caption.y),
+                            containerSize: geometry.containerSize,
+                            child: const IgnorePointer(
+                              child: DogPostCaptionMarker(),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                if (image.uploading) const _UploadingOverlay(),
               ],
             ),
           ),
         ),
         const SizedBox(height: 4),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.end,
+        Wrap(
+          alignment: WrapAlignment.end,
+          spacing: 4,
           children: [
             TextButton.icon(
-              onPressed: current.uploading ? null : onPick,
-              icon: const Icon(Icons.swap_horiz),
-              label: const Text('Trocar'),
+              onPressed: image.uploading ? null : onCaptions,
+              icon: const Icon(Icons.label_outline),
+              label: Text(
+                captions.isEmpty
+                    ? 'Adicionar legenda'
+                    : 'Legendas (${captions.length})',
+              ),
             ),
+            if (pick != null)
+              TextButton.icon(
+                onPressed: image.uploading ? null : pick,
+                icon: const Icon(Icons.swap_horiz),
+                label: const Text('Trocar'),
+              ),
             TextButton.icon(
-              onPressed: current.uploading ? null : onRemove,
+              onPressed: image.uploading ? null : onRemove,
               icon: const Icon(Icons.delete_outline),
               label: const Text('Remover'),
             ),
           ],
-        ),
-      ],
-    );
-  }
-}
-
-/// Preview de uma imagem do carrossel no composer: toque adiciona legenda no
-/// ponto (coords normalizadas), marcadores tocáveis para editar/remover.
-class _CarouselImageEditor extends StatelessWidget {
-  const _CarouselImageEditor({
-    required this.image,
-    required this.onRemove,
-    required this.onTapAt,
-    required this.onCaptionTap,
-  });
-
-  final ComposerImage image;
-  final VoidCallback onRemove;
-
-  /// Toque na imagem com o ponto normalizado (x/y ∈ [0,1]).
-  final ValueChanged<Offset> onTapAt;
-  final ValueChanged<int> onCaptionTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        ClipRRect(
-          borderRadius: BorderRadius.circular(16),
-          child: AspectRatio(
-            aspectRatio: 4 / 3,
-            child: LayoutBuilder(
-              builder: (context, constraints) {
-                final width = constraints.maxWidth;
-                final height = constraints.maxHeight;
-                return GestureDetector(
-                  behavior: HitTestBehavior.opaque,
-                  onTapUp: image.uploading
-                      ? null
-                      : (details) => onTapAt(
-                            Offset(
-                              (details.localPosition.dx / width)
-                                  .clamp(0.0, 1.0),
-                              (details.localPosition.dy / height)
-                                  .clamp(0.0, 1.0),
-                            ),
-                          ),
-                  child: Stack(
-                    fit: StackFit.expand,
-                    children: [
-                      _composerImagePreview(context, image),
-                      for (var i = 0; i < image.captions.length; i++)
-                        positionCaptionMarker(
-                          x: image.captions[i].x,
-                          y: image.captions[i].y,
-                          width: width,
-                          height: height,
-                          child: GestureDetector(
-                            onTap: () => onCaptionTap(i),
-                            child: const DogPostCaptionMarker(),
-                          ),
-                        ),
-                      if (image.uploading) const _UploadingOverlay(),
-                      _RemoveImageButton(onTap: onRemove),
-                    ],
-                  ),
-                );
-              },
-            ),
-          ),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          image.captions.isEmpty
-              ? 'Toque na imagem para adicionar uma legenda'
-              : 'Legendas: ${image.captions.length}/$maxCaptionsPerImage · '
-                  'toque num marcador para editar',
-          style: theme.textTheme.bodySmall
-              ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
         ),
       ],
     );

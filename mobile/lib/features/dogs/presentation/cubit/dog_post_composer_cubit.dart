@@ -173,44 +173,23 @@ class DogPostComposerCubit extends Cubit<DogPostComposerState> {
     emit(state.copyWith(images: images));
   }
 
-  /// Adiciona legenda no ponto tocado ([x]/[y] normalizados ∈ [0,1]).
-  void addCaption(int imageIndex, {
-    required String text,
-    required double x,
-    required double y,
-  }) {
+  /// Substitui as legendas de uma imagem com o resultado do editor de tela
+  /// cheia, reaplicando os limites do §3.5.2 (máx. 5 por imagem, x/y ∈ [0,1]).
+  void setCaptions(int imageIndex, List<DogPostDraftCaption> captions) {
     final image = state.images.elementAtOrNull(imageIndex);
-    if (image == null || image.captions.length >= maxCaptionsPerImage) return;
+    if (image == null) return;
+    final sanitized = [
+      for (final caption in captions.take(maxCaptionsPerImage))
+        DogPostDraftCaption(
+          text: caption.text,
+          x: caption.x.clamp(0.0, 1.0),
+          y: caption.y.clamp(0.0, 1.0),
+        ),
+    ];
     _patchImage(
       image.localId,
-      (current) => current.copyWith(
-        captions: [
-          ...current.captions,
-          DogPostDraftCaption(
-            text: text,
-            x: x.clamp(0, 1),
-            y: y.clamp(0, 1),
-          ),
-        ],
-      ),
+      (current) => current.copyWith(captions: sanitized),
     );
-  }
-
-  void updateCaption(int imageIndex, int captionIndex, String text) {
-    final image = state.images.elementAtOrNull(imageIndex);
-    final caption = image?.captions.elementAtOrNull(captionIndex);
-    if (image == null || caption == null) return;
-    final captions = [...image.captions];
-    captions[captionIndex] =
-        DogPostDraftCaption(text: text, x: caption.x, y: caption.y);
-    _patchImage(image.localId, (current) => current.copyWith(captions: captions));
-  }
-
-  void removeCaption(int imageIndex, int captionIndex) {
-    final image = state.images.elementAtOrNull(imageIndex);
-    if (image == null || captionIndex >= image.captions.length) return;
-    final captions = [...image.captions]..removeAt(captionIndex);
-    _patchImage(image.localId, (current) => current.copyWith(captions: captions));
   }
 
   /// Valida o draft e cria/atualiza o post. Sucesso ⇒ `savedPost` one-shot.

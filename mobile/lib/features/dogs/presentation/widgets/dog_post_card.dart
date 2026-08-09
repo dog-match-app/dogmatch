@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:dogmatch/core/utils/telegram_text.dart';
+import 'package:dogmatch/core/widgets/contained_image.dart';
 import 'package:dogmatch/features/dogs/data/models/dog_post_image_model.dart';
 import 'package:dogmatch/features/dogs/data/models/dog_post_model.dart';
 import 'package:dogmatch/features/dogs/domain/entities/dog_post_type.dart';
@@ -24,18 +25,21 @@ IconData dogPostTypeIcon(DogPostType type) {
 }
 
 /// Posiciona um marcador de legenda (caixa [DogPostCaptionMarker.boxSize])
-/// com o centro na âncora normalizada ([x], [y]), clampado às bordas.
+/// com o centro em [anchor] (pixels do container), clampado às bordas.
+///
+/// [anchor] vem de `ContainedImageGeometry.anchorOf` — nunca de `x * largura`,
+/// que ignora a letterbox do `BoxFit.contain`.
 Positioned positionCaptionMarker({
-  required double x,
-  required double y,
-  required double width,
-  required double height,
+  required Offset anchor,
+  required Size containerSize,
   required Widget child,
 }) {
   const box = DogPostCaptionMarker.boxSize;
   return Positioned(
-    left: (x * width - box / 2).clamp(0.0, math.max(0.0, width - box)),
-    top: (y * height - box / 2).clamp(0.0, math.max(0.0, height - box)),
+    left: (anchor.dx - box / 2)
+        .clamp(0.0, math.max(0.0, containerSize.width - box)),
+    top: (anchor.dy - box / 2)
+        .clamp(0.0, math.max(0.0, containerSize.height - box)),
     child: child,
   );
 }
@@ -78,7 +82,7 @@ class DogPostCaptionMarker extends StatelessWidget {
 
 /// Card de um post da página do cão, renderizado conforme o tipo (§3.5.2):
 /// TEXT (texto formatado), IMAGE (foto → viewer), IMAGE_TEXT (foto + texto)
-/// e CAROUSEL (PageView com dots e legendas posicionadas tocáveis).
+/// e CAROUSEL (PageView com dots). Toda imagem pode ter legendas posicionadas.
 class DogPostCard extends StatelessWidget {
   const DogPostCard({super.key, required this.post});
 
@@ -118,40 +122,21 @@ class _PostImage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: () => context.push(
-        '/photo-viewer',
-        extra: PhotoViewerArgs(photos: [image.url]),
-      ),
-      child: AspectRatio(
-        aspectRatio: 4 / 3,
-        child: _postNetworkImage(context, image.url),
+    return AspectRatio(
+      aspectRatio: 4 / 3,
+      child: _CaptionedImage(
+        image: image,
+        onTap: () => context.push(
+          '/photo-viewer',
+          extra: PhotoViewerArgs(photos: [image.url]),
+        ),
       ),
     );
   }
 }
 
-Widget _postNetworkImage(BuildContext context, String url) {
-  final theme = Theme.of(context);
-  return CachedNetworkImage(
-    imageUrl: url,
-    fit: BoxFit.cover,
-    placeholder: (_, _) =>
-        ColoredBox(color: theme.colorScheme.surfaceContainerHighest),
-    errorWidget: (_, _, _) => ColoredBox(
-      color: theme.colorScheme.surfaceContainerHighest,
-      child: Icon(
-        Icons.broken_image_outlined,
-        size: 48,
-        color: theme.colorScheme.outline,
-      ),
-    ),
-  );
-}
-
-/// Carrossel com dots e marcadores de legenda: toque no marcador abre um
-/// balão ancorado ao ponto (clampado às bordas); toque fora fecha; toque na
-/// imagem (sem balão aberto) abre o viewer na página atual.
+/// Carrossel com dots; cada página é uma [_CaptionedImage] e o toque na
+/// imagem abre o viewer já na página atual.
 class _PostCarousel extends StatefulWidget {
   const _PostCarousel({required this.images});
 
@@ -164,9 +149,6 @@ class _PostCarousel extends StatefulWidget {
 class _PostCarouselState extends State<_PostCarousel> {
   int _page = 0;
 
-  /// Índice da legenda com balão aberto na página atual.
-  int? _activeCaption;
-
   void _openViewer() {
     context.push(
       '/photo-viewer',
@@ -175,14 +157,6 @@ class _PostCarouselState extends State<_PostCarousel> {
         initialIndex: _page,
       ),
     );
-  }
-
-  void _onImageTap() {
-    if (_activeCaption != null) {
-      setState(() => _activeCaption = null);
-      return;
-    }
-    _openViewer();
   }
 
   @override
@@ -194,18 +168,10 @@ class _PostCarouselState extends State<_PostCarousel> {
         children: [
           PageView.builder(
             itemCount: widget.images.length,
-            onPageChanged: (page) => setState(() {
-              _page = page;
-              _activeCaption = null;
-            }),
+            onPageChanged: (page) => setState(() => _page = page),
             itemBuilder: (context, index) => _CaptionedImage(
               image: widget.images[index],
-              activeCaption: index == _page ? _activeCaption : null,
-              onTap: _onImageTap,
-              onCaptionTap: (captionIndex) => setState(() {
-                _activeCaption =
-                    _activeCaption == captionIndex ? null : captionIndex;
-              }),
+              onTap: _openViewer,
             ),
           ),
           if (widget.images.length > 1)
@@ -236,78 +202,80 @@ class _PostCarouselState extends State<_PostCarousel> {
   }
 }
 
-/// Uma página do carrossel: imagem + marcadores + balão da legenda ativa.
-class _CaptionedImage extends StatelessWidget {
-  const _CaptionedImage({
-    required this.image,
-    required this.activeCaption,
-    required this.onTap,
-    required this.onCaptionTap,
-  });
+/// Imagem de post com as legendas posicionadas: marcadores tocáveis e balão
+/// da legenda ativa. A foto aparece inteira porque as âncoras x/y são fração
+/// da imagem (§3.5.2) — recortar deslocaria os marcadores.
+class _CaptionedImage extends StatefulWidget {
+  const _CaptionedImage({required this.image, required this.onTap});
 
   final DogPostImageModel image;
-  final int? activeCaption;
   final VoidCallback onTap;
-  final ValueChanged<int> onCaptionTap;
+
+  @override
+  State<_CaptionedImage> createState() => _CaptionedImageState();
+}
+
+class _CaptionedImageState extends State<_CaptionedImage> {
+  int? _activeCaption;
+
+  void _onImageTap(Offset? _) {
+    if (_activeCaption != null) {
+      setState(() => _activeCaption = null);
+      return;
+    }
+    widget.onTap();
+  }
 
   @override
   Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final width = constraints.maxWidth;
-        final height = constraints.maxHeight;
-        final captions = image.captions;
-        final active =
-            activeCaption == null || activeCaption! >= captions.length
-                ? null
-                : captions[activeCaption!];
-        return GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onTap: onTap,
-          child: Stack(
-            fit: StackFit.expand,
-            children: [
-              _postNetworkImage(context, image.url),
-              for (var i = 0; i < captions.length; i++)
-                positionCaptionMarker(
-                  x: captions[i].x,
-                  y: captions[i].y,
-                  width: width,
-                  height: height,
-                  child: GestureDetector(
-                    onTap: () => onCaptionTap(i),
-                    child: DogPostCaptionMarker(active: i == activeCaption),
-                  ),
-                ),
-              if (active != null)
-                _captionBubble(active.x, active.y, width, height, active.text),
-            ],
+    final captions = widget.image.captions;
+    final activeIndex = _activeCaption;
+    final active = activeIndex == null || activeIndex >= captions.length
+        ? null
+        : captions[activeIndex];
+    return ContainedImage(
+      provider: CachedNetworkImageProvider(widget.image.url),
+      onTapAt: _onImageTap,
+      overlayBuilder: (context, geometry) => [
+        for (var i = 0; i < captions.length; i++)
+          positionCaptionMarker(
+            anchor: geometry.anchorOf(captions[i].x, captions[i].y),
+            containerSize: geometry.containerSize,
+            child: GestureDetector(
+              onTap: () => setState(
+                () => _activeCaption = _activeCaption == i ? null : i,
+              ),
+              child: DogPostCaptionMarker(active: i == activeIndex),
+            ),
           ),
-        );
-      },
+        if (active != null)
+          _captionBubble(
+            anchor: geometry.anchorOf(active.x, active.y),
+            containerSize: geometry.containerSize,
+            text: active.text,
+          ),
+      ],
     );
   }
 
   /// Balão ancorado ao marcador: abre para baixo na metade superior da
   /// imagem (e vice-versa), com horizontal clampado às bordas.
-  Widget _captionBubble(
-    double x,
-    double y,
-    double width,
-    double height,
-    String text,
-  ) {
+  Widget _captionBubble({
+    required Offset anchor,
+    required Size containerSize,
+    required String text,
+  }) {
+    final width = containerSize.width;
+    final height = containerSize.height;
     final bubbleWidth = math.min(220.0, width - 16);
-    final anchorX = x * width;
-    final anchorY = y * height;
-    final below = anchorY < height / 2;
+    final below = anchor.dy < height / 2;
     return Positioned(
-      left: (anchorX - bubbleWidth / 2).clamp(8.0, width - bubbleWidth - 8.0),
+      left: (anchor.dx - bubbleWidth / 2).clamp(8.0, width - bubbleWidth - 8.0),
       width: bubbleWidth,
-      top: below ? anchorY + DogPostCaptionMarker.boxSize / 2 + 4 : null,
+      top: below ? anchor.dy + DogPostCaptionMarker.boxSize / 2 + 4 : null,
       bottom: below
           ? null
-          : height - anchorY + DogPostCaptionMarker.boxSize / 2 + 4,
+          : height - anchor.dy + DogPostCaptionMarker.boxSize / 2 + 4,
       child: GestureDetector(
         // Absorve o toque para o balão não fechar/abrir o viewer.
         onTap: () {},
