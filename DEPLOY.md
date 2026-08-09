@@ -9,7 +9,7 @@ Há dois cenários — escolha o seu:
 
 | | **A. Só o IP da VPS** (sem domínio) | **B. Com domínio próprio** |
 |---|---|---|
-| URLs | `http://IP:3000` (API) · `http://IP:9000` (fotos) | `https://api.seu.com` · `https://media.seu.com` |
+| URLs | `http://IP:3333` (API) · `http://IP:9000` (fotos) | `https://api.seu.com` · `https://media.seu.com` |
 | HTTPS | ❌ não confiável sem domínio (Let's Encrypt não emite para IP puro, e domínios `sslip.io` vivem estourando o rate limit global) | ✅ automático pelo Coolify |
 | Exposição | portas mapeadas direto no container | proxy (Traefik) por domínio |
 | Uso | testes com amigos | qualquer coisa mais séria |
@@ -47,7 +47,9 @@ Crie um **Project** (ex.: `dogmatch`) e dentro dele:
 - **+ New → Service → MinIO**. Anote `MINIO_ROOT_USER`/`MINIO_ROOT_PASSWORD`.
 - **Cenário A (só IP)**: em **Ports Mappings** do serviço, mapeie `9000:9000`
   (API S3 pública em `http://IP_DA_VPS:9000`). Libere a porta no firewall da VPS
-  (`sudo ufw allow 9000/tcp` e/ou no painel do provedor).
+  (`sudo ufw allow 9000/tcp` e/ou no painel do provedor). Se a 9000 já estiver
+  em uso na VPS, use outra no lado do host (ex.: `9002:9000`) e ajuste
+  `S3_ENDPOINT`/`S3_PUBLIC_URL` para `:9002`.
 - **Cenário B (domínio)**: defina um FQDN público para a porta 9000 — ex.:
   `https://media.SEUDOMINIO.com` (certificado automático).
 - Depois de subir, abra o console do MinIO (porta 9001 — exponha temporariamente
@@ -64,8 +66,11 @@ Crie um **Project** (ex.: `dogmatch`) e dentro dele:
 - **Build Pack**: `Dockerfile` · **Base Directory**: `/backend`.
 - **Port**: `3000`. **Healthcheck**: caminho `/health`.
 - **Exposição**:
-  - **Cenário A**: em **Ports Mappings**, mapeie `3000:3000` e libere a porta no
-    firewall da VPS (`sudo ufw allow 3000/tcp`). A API fica em `http://IP_DA_VPS:3000`.
+  - **Cenário A**: em **Ports Mappings**, mapeie **`3333:3000`** (host:container —
+    a porta 3000 da VPS costuma estar ocupada por outros processos; `3333` é só o
+    lado público, troque por qualquer porta livre: confira com `ss -ltn`). Libere no
+    firewall (`sudo ufw allow 3333/tcp`). A API fica em `http://IP_DA_VPS:3333`.
+    **Dentro do container nada muda**: `PORT=3000` permanece.
   - **Cenário B**: em **Domains**, `https://api.SEUDOMINIO.com`.
 - **Environment Variables** (aba Environment):
 
@@ -97,7 +102,7 @@ THROTTLE_LIMIT=100
 ```
 
 - **Deploy**. O container roda `prisma migrate deploy` no boot (cria as tabelas)
-  e sobe a API. Confira `http://IP_DA_VPS:3000/health` (ou o domínio) e `/api/docs`.
+  e sobe a API. Confira `http://IP_DA_VPS:3333/health` (ou o domínio) e `/api/docs`.
 
 Observações:
 - **WebSocket (chat)** funciona nos dois cenários (no A, direto na porta; no B,
@@ -112,8 +117,8 @@ Observações:
 O APK embute a URL da API em build time:
 
 ```bash
-# Cenário A (só IP):
-cd mobile && flutter build apk --release --dart-define=API_BASE_URL=http://IP_DA_VPS:3000
+# Cenário A (só IP — use a porta do host escolhida no mapeamento):
+cd mobile && flutter build apk --release --dart-define=API_BASE_URL=http://IP_DA_VPS:3333
 # Cenário B (domínio):
 cd mobile && flutter build apk --release --dart-define=API_BASE_URL=https://api.SEUDOMINIO.com
 ```
