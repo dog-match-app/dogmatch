@@ -121,8 +121,93 @@ no firewall (`sudo ufw allow 9000/tcp`) e use nas envs:
 (no cenário B: FQDN público na porta 9000 e URLs `https`). Se a tag fixada sumir,
 qualquer `RELEASE.2025-04*` de hub.docker.com/r/minio/minio/tags serve.
 
-> Outras alternativas self-hosted ativas, se preferir fugir do MinIO: Garage
-> (leve, ótimo p/ VPS pequena) e SeaweedFS — ambos S3-compatible.
+**Opção 3 — Garage** (self-hosted ativo, alternativa ao MinIO): projeto leve, feito
+para rodar fora de datacenter, consome pouca RAM. **Só faça sentido com domínio
+(cenário B)**: o Garage **não permite acesso anônimo na API S3** — a leitura pública
+sai pelo endpoint web (porta 3902), que roteia **por Host**, então um `S3_PUBLIC_URL`
+com IP puro não funciona. Com domínio, fica assim:
+
+1. Gere dois segredos: `openssl rand -hex 32` (um para `rpc_secret`, outro para
+   `admin_token`).
+2. **+ New → Docker Compose**:
+
+   ```yaml
+   services:
+     garage:
+       image: dxflrs/garage:v1.0.1
+       volumes:
+         - garage_meta:/var/lib/garage/meta
+         - garage_data:/var/lib/garage/data
+         - ./garage.toml:/etc/garage.toml
+       ports:
+         - "3900:3900"   # API S3
+         - "3902:3902"   # endpoint web (leitura pública)
+       deploy:
+         resources:
+           limits:
+             memory: 512M
+   volumes:
+     garage_meta:
+     garage_data:
+   ```
+
+   Com `garage.toml` (arquivo montado, no editor de arquivos do Coolify):
+
+   ```toml
+   metadata_dir = "/var/lib/garage/meta"
+   data_dir = "/var/lib/garage/data"
+   db_engine = "sqlite"
+   replication_factor = 1          # nó único
+
+   rpc_bind_addr = "[::]:3901"
+   rpc_public_addr = "127.0.0.1:3901"
+   rpc_secret = "<openssl rand -hex 32>"
+
+   [s3_api]
+   s3_region = "garage"
+   api_bind_addr = "[::]:3900"
+   root_domain = ".s3.SEUDOMINIO.com"
+
+   [s3_web]
+   bind_addr = "[::]:3902"
+   root_domain = ".web.SEUDOMINIO.com"
+   index = "index.html"
+
+   [admin]
+   api_bind_addr = "[::]:3903"
+   admin_token = "<outro openssl rand -hex 32>"
+   ```
+
+3. Inicialize o layout e crie bucket/chave (uma vez, via terminal do container):
+
+   ```bash
+   garage status                                   # copie o ID do nó
+   garage layout assign -z dc1 -c 10G <ID_DO_NÓ>
+   garage layout apply --version 1
+   garage bucket create dogmatch-media
+   garage key create dogmatch-key                  # anote Key ID e Secret
+   garage bucket allow --read --write dogmatch-media --key dogmatch-key
+   garage bucket website --allow dogmatch-media    # leitura pública via web
+   ```
+
+4. No Coolify, aponte `media.SEUDOMINIO.com` para a **porta 3902** (web) e
+   `s3.SEUDOMINIO.com` para a **3900** (API S3). Envs:
+
+   ```env
+   S3_ENDPOINT=https://s3.SEUDOMINIO.com
+   S3_REGION=garage
+   S3_ACCESS_KEY=<Key ID>
+   S3_SECRET_KEY=<Secret>
+   S3_BUCKET=dogmatch-media
+   S3_PUBLIC_URL=https://dogmatch-media.web.SEUDOMINIO.com
+   ```
+
+   (O host público é `<bucket>.web.<root_domain>` — é assim que o Garage sabe qual
+   bucket servir. Sem DNS curinga, crie o registro desse subdomínio específico.)
+
+> Resumo da escolha: **R2** = zero manutenção e HTTPS de graça, inclusive sem
+> domínio · **MinIO** = tudo na sua VPS, funciona com IP puro · **Garage** = leve e
+> self-hosted moderno, mas exige domínio pela ausência de acesso anônimo no S3.
 
 ## 2. A API
 
@@ -206,7 +291,7 @@ Orçamento recomendado (soma dos limites ≈ **2,5 GB**, sobrando folga dentro d
 | API (NestJS) | **768M** | env `NODE_OPTIONS=--max-old-space-size=512` (heap do Node em 512 MB; o resto é margem p/ buffers) |
 | PostgreSQL | **1G** | conf abaixo (Postgres não enxerga o limite do cgroup sozinho) |
 | Redis | **256M** | `maxmemory 200mb` + `maxmemory-policy noeviction` |
-| MinIO | **512M** | — (apenas se auto-hospedado; com R2 esta linha some e o total cai para ~2 GB) |
+| MinIO/Garage | **512M** | — (apenas se auto-hospedado; com R2 esta linha some e o total cai para ~2 GB) |
 
 Como aplicar no Coolify:
 
