@@ -120,6 +120,14 @@ npx prisma studio     # inspecionar o banco
   e `JwtService` mockados — siga `auth.service.spec.ts` / `swipes.service.spec.ts`.
 - Cobrir caminhos de erro (401/403/409), não só o feliz. `npm test` roda sem infra.
 
+## Build / Docker
+
+- O estágio `deps` usa `npm ci --include=dev` de propósito: PaaS (Coolify) injetam
+  `NODE_ENV=production` no build e o npm pularia as devDependencies necessárias
+  para compilar (`nest`, `tsc`). Não "simplifique" para `npm ci`.
+- `CMD` roda `prisma migrate deploy` antes da API — por isso o `prisma` CLI está em
+  `dependencies`, não em devDependencies.
+
 ## Checklist antes de concluir qualquer tarefa
 
 `npm run build` + `npm run lint` + `npm test` verdes · migration criada/aplicada se o

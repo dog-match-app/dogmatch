@@ -3,7 +3,9 @@ FROM node:24-alpine AS deps
 WORKDIR /app
 COPY package.json package-lock.json ./
 COPY prisma ./prisma
-RUN npm ci
+# --include=dev: PaaS como o Coolify injetam NODE_ENV=production no build, o que
+# faria o npm pular as devDependencies necessárias para compilar (nest cli, tsc).
+RUN npm ci --include=dev
 
 # ---- build: generate prisma client and compile ----
 FROM node:24-alpine AS build

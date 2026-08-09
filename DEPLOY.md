@@ -319,6 +319,16 @@ THROTTLE_LIMIT=100
 - **Deploy**. O container roda `prisma migrate deploy` no boot (cria as tabelas)
   e sobe a API. Confira `http://IP_DA_VPS:3333/health` (ou o domínio) e `/api/docs`.
 
+> **Sobre o aviso "Build-time environment variable warning: NODE_ENV=production"**:
+> o Coolify injeta as envs também no build, e `NODE_ENV=production` faz o npm pular
+> as devDependencies — sem elas o `nest build` não existe (`sh: nest: not found`).
+> O `Dockerfile` deste repositório já resolve isso com `npm ci --include=dev`, então
+> o aviso pode ser ignorado. Se ainda assim quiser silenciá-lo, desmarque
+> **"Available at Buildtime"** na variável `NODE_ENV` (deixando-a apenas como runtime).
+> Os avisos `SecretsUsedInArgOrEnv` também são normais: vêm do Coolify declarar cada
+> env como `ARG`; os segredos não ficam na imagem final porque o estágio `runner`
+> não os utiliza.
+
 Observações:
 - **WebSocket (chat)** funciona nos dois cenários (no A, direto na porta; no B,
   o Traefik faz o upgrade sem config extra).
