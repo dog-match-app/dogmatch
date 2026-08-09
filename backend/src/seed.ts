@@ -12,11 +12,14 @@ const prisma = new PrismaClient();
 
 const DEMO_EMAILS = ['ana@demo.com', 'bruno@demo.com', 'carla@demo.com'];
 
+// Public deployments should override this: the default is committed to the repo.
+const DEMO_PASSWORD = process.env.SEED_PASSWORD ?? 'Senha123!';
+
 const placedog = (id: number): string =>
   `https://placedog.net/640/640?id=${id}`;
 
 async function main(): Promise<void> {
-  const passwordHash = await argon2.hash('Senha123!');
+  const passwordHash = await argon2.hash(DEMO_PASSWORD);
 
   // Idempotency: remove demo users (cascades to dogs, photos, swipes,
   // matches and messages) and recreate everything from scratch.
@@ -291,7 +294,9 @@ async function main(): Promise<void> {
             url: placedog(18),
             position: 2,
             captions: {
-              create: [{ text: 'Cansado depois de 2h de bola', x: 0.5, y: 0.5 }],
+              create: [
+                { text: 'Cansado depois de 2h de bola', x: 0.5, y: 0.5 },
+              ],
             },
           },
         ],
@@ -357,7 +362,9 @@ async function main(): Promise<void> {
   );
   console.log(`  match Thor x Mel: ${match.id}`);
   console.log('  dog page: 3 posts on Rex (TEXT, IMAGE_TEXT, CAROUSEL)');
-  console.log('  social links: Rex (whatsapp+instagram), Luna (instagram+telegram)');
+  console.log(
+    '  social links: Rex (whatsapp+instagram), Luna (instagram+telegram)',
+  );
 }
 
 main()

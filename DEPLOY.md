@@ -345,9 +345,7 @@ THROTTLE_LIMIT=100
 Observações:
 - **WebSocket (chat)** funciona nos dois cenários (no A, direto na porta; no B,
   o Traefik faz o upgrade sem config extra).
-- **Seed de demonstração é opcional em produção** (o container não tem ts-node).
-  Para dados de demo, crie contas reais pelo app; se quiser mesmo o seed, rode-o
-  da sua máquina apontando `DATABASE_URL` para o Postgres via túnel SSH.
+- **Dados de demonstração** são opcionais — veja "Populando dados de teste" abaixo.
 - Segredos: gere JWTs fortes (`openssl rand -hex 32`) — nunca use os valores de dev.
 
 ## 3. APK público para os testadores
@@ -368,6 +366,33 @@ build + reenvio (roadmap: Firebase App Distribution para automatizar).
 
 `git push` na `main` → o Coolify rebuilda e redeploya (ative o auto-deploy por
 webhook na aplicação). Migrations novas rodam sozinhas no boot.
+
+## 3.1 Populando dados de teste (seed) — opcional
+
+O seed é compilado junto com a API (`dist/seed.js`), então roda em produção sem
+ts-node. Ele **só mexe nas contas de demonstração** (`ana@`, `bruno@`, `carla@`):
+apaga essas três e recria tudo — contas reais de outras pessoas não são tocadas.
+
+**Forma 1 — sob demanda (recomendada)**: no Coolify, abra o **terminal do container
+da API** (aba Terminal / Execute Command) e rode:
+
+```bash
+npm run seed:prod        # ou: node dist/seed.js
+```
+
+**Forma 2 — no boot**: defina `SEED_ON_START=true` nas envs e faça o redeploy. Após
+subir com os dados, **volte a variável para `false`** (ou remova-a): com ela ligada,
+todo restart do container recria as contas de demo. Se o seed falhar, a API sobe do
+mesmo jeito e o log mostra `WARN: seed failed`.
+
+> **Segurança**: a senha padrão do seed (`Senha123!`) está no repositório, ou seja,
+> é pública. Num deploy aberto a outras pessoas, defina `SEED_PASSWORD=<algo seu>`
+> nas envs **antes** de semear e divulgue essa senha só a quem for testar. As três
+> contas de demo passam a usá-la.
+
+Depois de semear, os testadores podem entrar com `ana@demo.com`, `bruno@demo.com`
+ou `carla@demo.com`. As fotos de exemplo vêm de URLs públicas (placedog/pravatar),
+então funcionam sem depender do seu storage.
 
 ## 4.1 Erro `P3009` — "migrate found failed migrations"
 

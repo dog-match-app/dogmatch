@@ -26,6 +26,8 @@ RUN npm prune --omit=dev && npm cache clean --force
 COPY --from=build /app/node_modules/.prisma ./node_modules/.prisma
 COPY --from=build /app/node_modules/@prisma/client ./node_modules/@prisma/client
 COPY --from=build /app/dist ./dist
+COPY docker-entrypoint.sh ./
+RUN chmod +x docker-entrypoint.sh
 EXPOSE 3000
-# migrate deploy no boot: idempotente; exige a CLI do prisma em dependencies
-CMD ["sh", "-c", "npx prisma migrate deploy && node dist/main.js"]
+# migrate deploy no boot (exige a CLI do prisma em dependencies) + seed opcional
+CMD ["./docker-entrypoint.sh"]
