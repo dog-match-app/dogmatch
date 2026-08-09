@@ -60,7 +60,9 @@ class DogRepositoryImpl implements DogRepository {
           if (bio != null && bio.isNotEmpty) 'bio': bio,
           'neutered': neutered,
           'pedigree': pedigree,
-          'social': ?social?.toJson(),
+          // Redes sociais vão como campos soltos (ARCHITECTURE §4); o DTO da API
+          // rejeita chaves desconhecidas, então nada de objeto aninhado aqui.
+          ...?social?.toRequestFields(),
         },
       );
       return DogModel.fromJson(response.data!);
@@ -94,8 +96,8 @@ class DogRepositoryImpl implements DogRepository {
           'bio': ?bio,
           'neutered': ?neutered,
           'pedigree': ?pedigree,
-          // Objeto completo: chaves nulas limpam a rede correspondente.
-          'social': ?social?.toJson(),
+          // Campos soltos (ARCHITECTURE §4); string vazia limpa a rede no backend.
+          ...?social?.toRequestFields(),
         },
       );
       return DogModel.fromJson(response.data!);

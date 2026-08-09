@@ -26,9 +26,18 @@ class DogSocialModel extends Equatable {
   bool get hasAny => [whatsapp, instagram, pinterest, telegram]
       .any((value) => value != null && value.trim().isNotEmpty);
 
-  /// Inclui as chaves nulas de propósito: no PATCH o objeto `social` é
-  /// enviado completo e `null` limpa o campo correspondente.
   Map<String, dynamic> toJson() => _$DogSocialModelToJson(this);
+
+  /// Corpo de `POST /dogs` e `PATCH /dogs/:id`: as redes vão como **campos
+  /// soltos** (ARCHITECTURE §4) — a API recusa chaves desconhecidas, então
+  /// enviar um objeto `social` aninhado resulta em 400. As chaves nulas vão
+  /// de propósito: no PATCH, `null` limpa a rede correspondente.
+  Map<String, dynamic> toRequestFields() => <String, dynamic>{
+        'whatsapp': whatsapp,
+        'instagram': instagram,
+        'pinterest': pinterest,
+        'telegram': telegram,
+      };
 
   @override
   List<Object?> get props => [whatsapp, instagram, pinterest, telegram];

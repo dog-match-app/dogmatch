@@ -84,6 +84,13 @@ SDK em `~/development/flutter` (stable), já no PATH. Celular físico: ver `READ
   `dogs`, registrar com `POST /dogs/:id/photos {key}`; criar cão mantém o form aberto
   em modo edição (fotos precisam do id).
 
+### dogs — cadastro
+- **Atenção à assimetria do contrato**: a resposta (`DogDto`) traz `social` como
+  objeto aninhado, mas o corpo de `POST /dogs`/`PATCH /dogs/:id` usa os campos
+  **soltos** (`whatsapp`, `instagram`, `pinterest`, `telegram`) — use
+  `DogSocialModel.toRequestFields()`. Mandar `social: {...}` no corpo dá 400
+  (`forbidNonWhitelisted`). Coberto por `test/features/dogs/dog_repository_payload_test.dart`.
+
 ### dogs — página do cão (posts)
 - Regras de tipo/limite centralizadas em `domain/entities/dog_post_rules.dart`
   (10 posts, texto 2000, legenda 200, 5 legendas/img, carrossel 2..8) — espelham o
