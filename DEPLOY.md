@@ -126,7 +126,70 @@ build + reenvio (roadmap: Firebase App Distribution para automatizar).
 `git push` na `main` → o Coolify rebuilda e redeploya (ative o auto-deploy por
 webhook na aplicação). Migrations novas rodam sozinhas no boot.
 
-## 5. Quando comprar um domínio (migração A → B)
+## 5. Limites de memória (VPS de 8 GB → sistema todo ≤ 3 GB)
+
+Orçamento recomendado (soma dos limites ≈ **2,5 GB**, sobrando folga dentro dos
+3 GB e deixando o resto da VPS livre):
+
+| Serviço | Limite do container | Ajuste interno (para caber no limite) |
+|---|---|---|
+| API (NestJS) | **768M** | env `NODE_OPTIONS=--max-old-space-size=512` (heap do Node em 512 MB; o resto é margem p/ buffers) |
+| PostgreSQL | **1G** | conf abaixo (Postgres não enxerga o limite do cgroup sozinho) |
+| Redis | **256M** | `maxmemory 200mb` + `maxmemory-policy noeviction` |
+| MinIO | **512M** | — |
+
+Como aplicar no Coolify:
+
+- **API (Application)**: aba **Advanced → Resource Limits** (ou o campo *Custom
+  Docker Run Options*): **Memory Limit** `768m` e **Memory Swap Limit** `768m`
+  (swap = limite ⇒ o container não empurra para swap). Equivalente em opções
+  cruas: `--memory=768m --memory-swap=768m`. Adicione também a env
+  `NODE_OPTIONS=--max-old-space-size=512` na aba Environment.
+- **PostgreSQL (Database)**: Resource Limits/Custom Docker Options com
+  `--memory=1g --memory-swap=1g`, e no campo **Custom PostgreSQL Configuration**:
+
+  ```conf
+  shared_buffers = 256MB
+  effective_cache_size = 512MB
+  work_mem = 8MB
+  maintenance_work_mem = 64MB
+  max_connections = 30
+  ```
+
+  (Opcional: limite o pool do Prisma acrescentando `&connection_limit=10` ao
+  final da `DATABASE_URL` — bem abaixo dos 30 do Postgres.)
+- **Redis (Database)**: `--memory=256m --memory-swap=256m` e, na configuração
+  custom do Redis (ou argumentos de start):
+
+  ```conf
+  maxmemory 200mb
+  maxmemory-policy noeviction
+  ```
+
+  > `noeviction` de propósito: o Redis guarda filas do BullMQ — política de
+  > eviction "lru" descartaria jobs silenciosamente. Com 200 MB há espaço de
+  > sobra para filas + adapter do socket.io neste porte de app.
+- **MinIO (Service)**: edite o Docker Compose do serviço no Coolify e adicione ao
+  serviço do minio:
+
+  ```yaml
+  deploy:
+    resources:
+      limits:
+        memory: 512M
+  ```
+
+Verificação e comportamento:
+
+- Na VPS, `docker stats` mostra uso vs. limite por container em tempo real.
+- Se um container estourar o limite, o kernel o mata (OOM) e o Coolify/Docker o
+  reinicia (restart policy) — para a API isso é um restart limpo; para o Postgres,
+  a conf acima existe justamente para ele se manter longe do teto.
+- Esses números aguentam tranquilamente uma rodada de testes com dezenas de
+  usuários; se o discovery começar a lentear com muita gente, o primeiro upgrade
+  é subir o limite do Postgres (e `shared_buffers` junto, ~25% do novo limite).
+
+## 6. Quando comprar um domínio (migração A → B)
 
 1. Aponte `api.` e `media.` para o IP da VPS (registros A).
 2. No Coolify: adicione os Domains na API e no MinIO e remova os Ports Mappings.
