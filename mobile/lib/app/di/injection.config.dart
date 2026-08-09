@@ -99,7 +99,6 @@ extension GetItInjectableX on _i174.GetIt {
       () => _i838.AuthSessionManager(),
       dispose: (i) => i.dispose(),
     );
-    gh.lazySingleton<_i230.ActiveDogCubit>(() => _i230.ActiveDogCubit());
     gh.lazySingleton<_i478.TokenStorage>(
       () => _i478.TokenStorage(gh<_i558.FlutterSecureStorage>()),
     );
@@ -171,6 +170,30 @@ extension GetItInjectableX on _i174.GetIt {
       () =>
           _i218.RegisterCubit(gh<_i549.AuthRepository>(), gh<_i190.AuthBloc>()),
     );
+    gh.factory<_i209.DogPostComposerCubit>(
+      () => _i209.DogPostComposerCubit(
+        gh<_i564.DogPostsRepository>(),
+        gh<_i416.FileUploader>(),
+      ),
+    );
+    gh.lazySingleton<_i230.ActiveDogCubit>(
+      () => _i230.ActiveDogCubit(gh<_i1052.DogRepository>()),
+    );
+    gh.factory<_i417.ProfileCubit>(
+      () => _i417.ProfileCubit(gh<_i854.ProfileRepository>()),
+    );
+    gh.factory<_i691.MyDogsCubit>(
+      () => _i691.MyDogsCubit(
+        gh<_i1052.DogRepository>(),
+        gh<_i230.ActiveDogCubit>(),
+      ),
+    );
+    gh.factory<_i290.DiscoveryCubit>(
+      () => _i290.DiscoveryCubit(
+        gh<_i557.DiscoveryRepository>(),
+        gh<_i230.ActiveDogCubit>(),
+      ),
+    );
     gh.factory<_i996.DogDetailCubit>(
       () => _i996.DogDetailCubit(
         gh<_i1052.DogRepository>(),
@@ -179,38 +202,17 @@ extension GetItInjectableX on _i174.GetIt {
         gh<_i230.ActiveDogCubit>(),
       ),
     );
-    gh.factory<_i209.DogPostComposerCubit>(
-      () => _i209.DogPostComposerCubit(
-        gh<_i564.DogPostsRepository>(),
-        gh<_i416.FileUploader>(),
-      ),
-    );
     gh.factory<_i623.MatchesCubit>(
       () => _i623.MatchesCubit(
         gh<_i19.MatchRepository>(),
-        gh<_i1052.DogRepository>(),
         gh<_i230.ActiveDogCubit>(),
       ),
-    );
-    gh.factory<_i290.DiscoveryCubit>(
-      () => _i290.DiscoveryCubit(
-        gh<_i1052.DogRepository>(),
-        gh<_i557.DiscoveryRepository>(),
-        gh<_i230.ActiveDogCubit>(),
-      ),
-    );
-    gh.factory<_i691.MyDogsCubit>(
-      () => _i691.MyDogsCubit(gh<_i1052.DogRepository>()),
     );
     gh.factory<_i832.SearchCubit>(
       () => _i832.SearchCubit(
         gh<_i984.SearchRepository>(),
-        gh<_i1052.DogRepository>(),
         gh<_i230.ActiveDogCubit>(),
       ),
-    );
-    gh.factory<_i417.ProfileCubit>(
-      () => _i417.ProfileCubit(gh<_i854.ProfileRepository>()),
     );
     return this;
   }

@@ -74,6 +74,17 @@ class SearchCardModel extends Equatable {
     );
   }
 
+  /// Cópia sem os badges de perspectiva, usada ao trocar o cão ativo:
+  /// `myAction`/`matched` só valem para o cão que fez a busca.
+  SearchCardModel withoutMyPerspective() {
+    return SearchCardModel(
+      dog: dog,
+      distanceKm: distanceKm,
+      owner: owner,
+      isMine: isMine,
+    );
+  }
+
   Map<String, dynamic> toJson() => _$SearchCardModelToJson(this);
 
   @override

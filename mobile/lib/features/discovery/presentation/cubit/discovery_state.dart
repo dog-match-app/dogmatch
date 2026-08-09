@@ -12,7 +12,6 @@ enum DiscoveryStatus {
 class DiscoveryState extends Equatable {
   const DiscoveryState({
     this.status = DiscoveryStatus.initial,
-    this.myDogs = const [],
     this.activeDog,
     this.cards = const [],
     this.deckKey = 0,
@@ -22,7 +21,8 @@ class DiscoveryState extends Equatable {
   });
 
   final DiscoveryStatus status;
-  final List<DogModel> myDogs;
+
+  /// Espelha a seleção do `ActiveDogCubit` (fonte da verdade).
   final DogModel? activeDog;
   final List<DiscoveryCardModel> cards;
 
@@ -39,7 +39,6 @@ class DiscoveryState extends Equatable {
 
   DiscoveryState copyWith({
     DiscoveryStatus? status,
-    List<DogModel>? myDogs,
     DogModel? activeDog,
     List<DiscoveryCardModel>? cards,
     int? deckKey,
@@ -49,7 +48,6 @@ class DiscoveryState extends Equatable {
   }) {
     return DiscoveryState(
       status: status ?? this.status,
-      myDogs: myDogs ?? this.myDogs,
       activeDog: activeDog ?? this.activeDog,
       cards: cards ?? this.cards,
       deckKey: deckKey ?? this.deckKey,
@@ -62,7 +60,6 @@ class DiscoveryState extends Equatable {
   @override
   List<Object?> get props => [
         status,
-        myDogs,
         activeDog,
         cards,
         deckKey,

@@ -52,8 +52,10 @@ SDK em `~/development/flutter` (stable), já no PATH. Celular físico: ver `READ
   `copyWith` — siga os cubits existentes.
 - Sessão: 401 irrecuperável flui `AuthInterceptor → AuthSessionManager → AuthBloc →
   redirect do router`. NUNCA trate expiração de sessão dentro de uma feature.
-- `ActiveDogCubit` (lazySingleton) é a única fonte do "cão ativo" — Discovery e
-  Matches escutam o mesmo; não duplique essa escolha em outro estado.
+- `ActiveDogCubit` (lazySingleton) é a única fonte do "cão ativo" **e da lista dos
+  meus cães** (`ensureLoaded`/`refresh`) — Discovery, busca, matches e detalhe
+  escutam o stream dele; nenhum outro cubit carrega `getMyDogs()` para escolher cão
+  nem duplica essa seleção. Mutação em `MyDogsCubit` chama `refresh()`.
 
 ## Rede e tempo real
 
@@ -153,6 +155,10 @@ SDK em `~/development/flutter` (stable), já no PATH. Celular físico: ver `READ
   de calendário escrevendo no MESMO controller — nunca só o picker.
 - **Fotos**: qualquer imagem "hero" deve abrir no `PhotoViewerPage` (`/photo-viewer`
   com `PhotoViewerArgs`) — zoom por pinça e duplo-toque.
+- **Troca de cão**: toda tela cujo conteúdo depende do cão ativo mostra o
+  `ActiveDogSelector` (`features/dogs/presentation/widgets/`) — `.compact()` no
+  AppBar, `.row(label:)` no corpo, `.readOnly(dog:)` onde o cão é fixo (chat, cujo
+  cão vem do match). Nunca reimplemente um dropdown de cães na tela.
 
 ## Plataforma
 

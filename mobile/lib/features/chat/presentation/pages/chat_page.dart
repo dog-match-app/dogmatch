@@ -3,6 +3,7 @@ import 'package:dogmatch/core/widgets/empty_state.dart';
 import 'package:dogmatch/core/widgets/loading_indicator.dart';
 import 'package:dogmatch/features/chat/data/models/message_model.dart';
 import 'package:dogmatch/features/chat/presentation/cubit/chat_cubit.dart';
+import 'package:dogmatch/features/dogs/presentation/widgets/active_dog_selector.dart';
 import 'package:dogmatch/features/matches/data/models/match_model.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -92,6 +93,20 @@ class _ChatViewState extends State<_ChatView> {
                         ),
                       ),
                     ],
+                  ),
+            // O cão da conversa vem do match, não da seleção global: aqui a
+            // troca mudaria o contexto da conversa aberta.
+            bottom: match == null
+                ? null
+                : PreferredSize(
+                    preferredSize: const Size.fromHeight(56),
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                      child: ActiveDogSelector.readOnly(
+                        dog: match.myDog,
+                        label: 'Conversando como',
+                      ),
+                    ),
                   ),
           ),
           body: SafeArea(

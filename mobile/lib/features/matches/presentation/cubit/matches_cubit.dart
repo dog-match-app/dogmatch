@@ -2,8 +2,6 @@ import 'dart:async';
 
 import 'package:dogmatch/core/error/api_exception.dart';
 import 'package:dogmatch/features/discovery/presentation/cubit/active_dog_cubit.dart';
-import 'package:dogmatch/features/dogs/data/models/dog_model.dart';
-import 'package:dogmatch/features/dogs/domain/repositories/dog_repository.dart';
 import 'package:dogmatch/features/matches/data/models/match_model.dart';
 import 'package:dogmatch/features/matches/domain/repositories/match_repository.dart';
 import 'package:equatable/equatable.dart';
@@ -18,40 +16,49 @@ part 'matches_state.dart';
 class MatchesCubit extends Cubit<MatchesState> {
   MatchesCubit(
     this._matchRepository,
-    this._dogRepository,
     this._activeDogCubit,
   ) : super(const MatchesState()) {
-    _activeDogSubscription = _activeDogCubit.stream.listen((dog) {
+    _activeDogSubscription = _activeDogCubit.stream.listen((activeState) {
+      final dog = activeState.active;
       if (dog != null && dog.id != state.activeDogId) load();
     });
   }
 
   final MatchRepository _matchRepository;
-  final DogRepository _dogRepository;
   final ActiveDogCubit _activeDogCubit;
 
-  late final StreamSubscription<DogModel?> _activeDogSubscription;
+  late final StreamSubscription<ActiveDogState> _activeDogSubscription;
+
+  /// Descarta respostas obsoletas quando o cão troca durante o fetch.
+  int _requestId = 0;
 
   Future<void> load() async {
+    final requestId = ++_requestId;
     emit(state.copyWith(status: MatchesStatus.loading));
+    await _activeDogCubit.ensureLoaded();
+    if (isClosed || requestId != _requestId) return;
+    final activeState = _activeDogCubit.state;
+    if (activeState.status == ActiveDogStatus.error) {
+      emit(
+        state.copyWith(
+          status: MatchesStatus.error,
+          errorMessage: activeState.message,
+        ),
+      );
+      return;
+    }
+    final activeDog = activeState.active;
+    if (activeDog == null) {
+      emit(state.copyWith(status: MatchesStatus.loaded, matches: []));
+      return;
+    }
+    emit(state.copyWith(activeDogId: activeDog.id));
     try {
-      var activeDog = _activeDogCubit.state;
-      if (activeDog == null) {
-        final dogs = await _dogRepository.getMyDogs();
-        if (dogs.isEmpty) {
-          emit(state.copyWith(status: MatchesStatus.loaded, matches: []));
-          return;
-        }
-        activeDog = dogs.first;
-        // Atualiza o id antes do select para o listener não recarregar.
-        emit(state.copyWith(activeDogId: activeDog.id));
-        _activeDogCubit.select(activeDog);
-      } else {
-        emit(state.copyWith(activeDogId: activeDog.id));
-      }
       final matches = await _matchRepository.getMatches(dogId: activeDog.id);
+      if (isClosed || requestId != _requestId) return;
       emit(state.copyWith(status: MatchesStatus.loaded, matches: matches));
     } on ApiException catch (exception) {
+      if (isClosed || requestId != _requestId) return;
       emit(
         state.copyWith(
           status: MatchesStatus.error,

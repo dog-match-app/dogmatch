@@ -1,6 +1,7 @@
 import 'package:dogmatch/app/di/injection.dart';
 import 'package:dogmatch/core/widgets/empty_state.dart';
 import 'package:dogmatch/core/widgets/loading_indicator.dart';
+import 'package:dogmatch/features/dogs/presentation/widgets/active_dog_selector.dart';
 import 'package:dogmatch/features/search/domain/entities/search_filters.dart';
 import 'package:dogmatch/features/search/presentation/cubit/search_cubit.dart';
 import 'package:dogmatch/features/search/presentation/widgets/filter_sheet.dart';
@@ -72,6 +73,7 @@ class _SearchViewState extends State<_SearchView> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Buscar'),
+        actions: const [ActiveDogSelector.compact()],
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(68),
           child: Padding(

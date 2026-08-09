@@ -1,10 +1,11 @@
+import 'dart:async';
+
 import 'package:dogmatch/core/error/api_exception.dart';
 import 'package:dogmatch/features/discovery/data/models/discovery_card_model.dart';
 import 'package:dogmatch/features/discovery/domain/entities/swipe_action.dart';
 import 'package:dogmatch/features/discovery/domain/repositories/discovery_repository.dart';
 import 'package:dogmatch/features/discovery/presentation/cubit/active_dog_cubit.dart';
 import 'package:dogmatch/features/dogs/data/models/dog_model.dart';
-import 'package:dogmatch/features/dogs/domain/repositories/dog_repository.dart';
 import 'package:dogmatch/features/matches/data/models/match_model.dart';
 import 'package:equatable/equatable.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -15,49 +16,51 @@ part 'discovery_state.dart';
 @injectable
 class DiscoveryCubit extends Cubit<DiscoveryState> {
   DiscoveryCubit(
-    this._dogRepository,
     this._discoveryRepository,
     this._activeDogCubit,
-  ) : super(const DiscoveryState());
+  ) : super(const DiscoveryState()) {
+    _activeDogSubscription = _activeDogCubit.stream.listen((activeState) {
+      final dog = activeState.active;
+      if (dog == null || dog.id == state.activeDog?.id) return;
+      emit(state.copyWith(activeDog: dog));
+      _loadFeed();
+    });
+  }
 
-  final DogRepository _dogRepository;
   final DiscoveryRepository _discoveryRepository;
   final ActiveDogCubit _activeDogCubit;
+
+  late final StreamSubscription<ActiveDogState> _activeDogSubscription;
 
   /// Swipes ainda não confirmados pela API (aguardados antes de recarregar
   /// o deck, para o feed não devolver cães já swipados).
   final Set<Future<void>> _pendingSwipes = {};
 
+  /// Descarta respostas de decks obsoletos (troca de cão durante o fetch).
+  int _feedRequestId = 0;
+
   Future<void> init() async {
+    final requestId = ++_feedRequestId;
     emit(state.copyWith(status: DiscoveryStatus.loading));
-    try {
-      final dogs = await _dogRepository.getMyDogs();
-      if (dogs.isEmpty) {
-        _activeDogCubit.select(null);
-        emit(state.copyWith(status: DiscoveryStatus.noDogs, myDogs: []));
-        return;
-      }
-      var active = _activeDogCubit.state;
-      if (active == null || !dogs.any((dog) => dog.id == active?.id)) {
-        active = dogs.first;
-        _activeDogCubit.select(active);
-      }
-      emit(state.copyWith(myDogs: dogs, activeDog: active));
-      await _loadFeed();
-    } on ApiException catch (exception) {
+    await _activeDogCubit.refresh();
+    // A troca de cão pelo listener já recarregou o deck.
+    if (isClosed || requestId != _feedRequestId) return;
+    final activeState = _activeDogCubit.state;
+    if (activeState.status == ActiveDogStatus.error) {
       emit(
         state.copyWith(
           status: DiscoveryStatus.error,
-          errorMessage: exception.message,
+          errorMessage: activeState.message,
         ),
       );
+      return;
     }
-  }
-
-  Future<void> selectDog(DogModel dog) async {
-    if (dog.id == state.activeDog?.id) return;
-    _activeDogCubit.select(dog);
-    emit(state.copyWith(activeDog: dog));
+    final active = activeState.active;
+    if (active == null) {
+      emit(state.copyWith(status: DiscoveryStatus.noDogs));
+      return;
+    }
+    emit(state.copyWith(activeDog: active));
     await _loadFeed();
   }
 
@@ -105,9 +108,11 @@ class DiscoveryCubit extends Cubit<DiscoveryState> {
   Future<void> _loadFeed() async {
     final activeDog = state.activeDog;
     if (activeDog == null) return;
+    final requestId = ++_feedRequestId;
     emit(state.copyWith(status: DiscoveryStatus.loading));
     try {
       final cards = await _discoveryRepository.getFeed(dogId: activeDog.id);
+      if (isClosed || requestId != _feedRequestId) return;
       emit(
         state.copyWith(
           status: DiscoveryStatus.loaded,
@@ -116,6 +121,7 @@ class DiscoveryCubit extends Cubit<DiscoveryState> {
         ),
       );
     } on ApiException catch (exception) {
+      if (isClosed || requestId != _feedRequestId) return;
       if (exception.isLocationRequired) {
         emit(state.copyWith(status: DiscoveryStatus.locationRequired));
       } else {
@@ -127,5 +133,11 @@ class DiscoveryCubit extends Cubit<DiscoveryState> {
         );
       }
     }
+  }
+
+  @override
+  Future<void> close() async {
+    await _activeDogSubscription.cancel();
+    return super.close();
   }
 }

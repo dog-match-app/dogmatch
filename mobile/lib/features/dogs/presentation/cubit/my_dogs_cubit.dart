@@ -1,6 +1,8 @@
+import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:dogmatch/core/error/api_exception.dart';
+import 'package:dogmatch/features/discovery/presentation/cubit/active_dog_cubit.dart';
 import 'package:dogmatch/features/dogs/data/models/dog_model.dart';
 import 'package:dogmatch/features/dogs/data/models/dog_social_model.dart';
 import 'package:dogmatch/features/dogs/domain/entities/dog_enums.dart';
@@ -14,9 +16,11 @@ part 'my_dogs_state.dart';
 /// Lista/criação/edição/remoção dos meus cães + fotos.
 @injectable
 class MyDogsCubit extends Cubit<MyDogsState> {
-  MyDogsCubit(this._dogRepository) : super(const MyDogsState());
+  MyDogsCubit(this._dogRepository, this._activeDogCubit)
+      : super(const MyDogsState());
 
   final DogRepository _dogRepository;
+  final ActiveDogCubit _activeDogCubit;
 
   Future<void> load() async {
     emit(state.copyWith(status: MyDogsStatus.loading));
@@ -89,6 +93,7 @@ class MyDogsCubit extends Cubit<MyDogsState> {
           successMessage: 'Cão cadastrado! Agora adicione fotos.',
         ),
       );
+      _syncActiveDogs();
     } on ApiException catch (exception) {
       emit(state.copyWith(saving: false, errorMessage: exception.message));
     }
@@ -130,6 +135,7 @@ class MyDogsCubit extends Cubit<MyDogsState> {
           successMessage: 'Alterações salvas!',
         ),
       );
+      _syncActiveDogs();
     } on ApiException catch (exception) {
       emit(state.copyWith(saving: false, errorMessage: exception.message));
     }
@@ -140,6 +146,7 @@ class MyDogsCubit extends Cubit<MyDogsState> {
     try {
       await _dogRepository.deleteDog(id);
       emit(state.copyWith(saving: false, deleted: true));
+      _syncActiveDogs();
     } on ApiException catch (exception) {
       emit(state.copyWith(saving: false, errorMessage: exception.message));
     }
@@ -175,4 +182,8 @@ class MyDogsCubit extends Cubit<MyDogsState> {
       emit(state.copyWith(photoBusy: false, errorMessage: exception.message));
     }
   }
+
+  /// O seletor de cão ativo (todas as telas) lê a lista do [ActiveDogCubit] —
+  /// criar/editar/remover aqui precisa atualizá-la.
+  void _syncActiveDogs() => unawaited(_activeDogCubit.refresh());
 }

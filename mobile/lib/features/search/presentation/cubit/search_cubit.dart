@@ -2,7 +2,6 @@ import 'dart:async';
 
 import 'package:dogmatch/core/error/api_exception.dart';
 import 'package:dogmatch/features/discovery/presentation/cubit/active_dog_cubit.dart';
-import 'package:dogmatch/features/dogs/domain/repositories/dog_repository.dart';
 import 'package:dogmatch/features/search/data/models/search_card_model.dart';
 import 'package:dogmatch/features/search/domain/entities/search_filters.dart';
 import 'package:dogmatch/features/search/domain/repositories/search_repository.dart';
@@ -21,18 +20,26 @@ part 'search_state.dart';
 class SearchCubit extends Cubit<SearchState> {
   SearchCubit(
     this._searchRepository,
-    this._dogRepository,
     this._activeDogCubit,
-  ) : super(const SearchState());
+  ) : super(const SearchState()) {
+    _activeDogSubscription = _activeDogCubit.stream.listen((activeState) {
+      final dog = activeState.active;
+      if (dog != null && dog.id != _dogId) search();
+    });
+  }
 
   static const Duration debounceDuration = Duration(milliseconds: 400);
   static const int _pageSize = 20;
 
   final SearchRepository _searchRepository;
-  final DogRepository _dogRepository;
   final ActiveDogCubit _activeDogCubit;
 
+  late final StreamSubscription<ActiveDogState> _activeDogSubscription;
+
   Timer? _debounce;
+
+  /// Cão usado na última busca — a perspectiva dos badges da lista atual.
+  String? _dogId;
 
   /// Identifica a busca mais recente; respostas de buscas antigas (ex.: um
   /// debounce que resolveu depois de uma nova busca) são descartadas.
@@ -43,11 +50,13 @@ class SearchCubit extends Cubit<SearchState> {
     _debounce?.cancel();
     final requestId = ++_requestId;
     emit(state.copyWith(status: SearchStatus.loading));
+    await _activeDogCubit.ensureLoaded();
+    if (isClosed || requestId != _requestId) return;
+    _dogId = _activeDogCubit.state.active?.id;
     try {
-      final dogId = await _ensureActiveDogId();
       final result = await _searchRepository.search(
         state.filters,
-        dogId: dogId,
+        dogId: _dogId,
         excludeSwiped: false,
         page: 1,
         limit: _pageSize,
@@ -83,7 +92,7 @@ class SearchCubit extends Cubit<SearchState> {
     try {
       final result = await _searchRepository.search(
         state.filters,
-        dogId: _activeDogCubit.state?.id,
+        dogId: _activeDogCubit.state.active?.id,
         excludeSwiped: false,
         page: state.page + 1,
         limit: _pageSize,
@@ -125,25 +134,10 @@ class SearchCubit extends Cubit<SearchState> {
   /// Pull-to-refresh: refaz a busca da página 1.
   Future<void> refresh() => search();
 
-  /// Garante um cão ativo para a perspectiva dos badges: se ainda não há
-  /// seleção, escolhe o primeiro cão do usuário (mesmo padrão do Matches).
-  /// A busca funciona sem cão (sem badges), então falhas aqui são ignoradas.
-  Future<String?> _ensureActiveDogId() async {
-    final active = _activeDogCubit.state;
-    if (active != null) return active.id;
-    try {
-      final dogs = await _dogRepository.getMyDogs();
-      if (dogs.isEmpty) return null;
-      _activeDogCubit.select(dogs.first);
-      return dogs.first.id;
-    } on ApiException {
-      return null;
-    }
-  }
-
   @override
-  Future<void> close() {
+  Future<void> close() async {
     _debounce?.cancel();
+    await _activeDogSubscription.cancel();
     return super.close();
   }
 }

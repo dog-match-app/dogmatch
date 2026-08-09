@@ -9,6 +9,7 @@ import 'package:dogmatch/features/discovery/presentation/widgets/match_dialog.da
 import 'package:dogmatch/features/dogs/data/models/dog_model.dart';
 import 'package:dogmatch/features/dogs/data/models/dog_photo_model.dart';
 import 'package:dogmatch/features/dogs/presentation/cubit/dog_posts_cubit.dart';
+import 'package:dogmatch/features/dogs/presentation/widgets/active_dog_selector.dart';
 import 'package:dogmatch/features/dogs/presentation/widgets/dog_post_card.dart';
 import 'package:dogmatch/features/dogs/presentation/widgets/dog_social_pills.dart';
 import 'package:dogmatch/features/search/data/models/search_card_model.dart';
@@ -265,7 +266,8 @@ class _PostsTab extends StatelessWidget {
 }
 
 /// Ações do rodapé conforme o estado: abrir conversa (match), curtir/passar
-/// (com cão ativo) ou CTA de cadastro (sem cão).
+/// (com cão ativo) ou CTA de cadastro (sem cão). O seletor fica junto das
+/// ações — é com esse cão que o like é registrado.
 class _BottomActions extends StatelessWidget {
   const _BottomActions({required this.state, required this.dogId});
 
@@ -275,14 +277,6 @@ class _BottomActions extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final card = state.card!;
-    if (card.isMatched) {
-      return PrimaryButton(
-        label: 'Abrir conversa 💬',
-        icon: Icons.chat_bubble_outline,
-        loading: state.actionInProgress,
-        onPressed: () => context.read<DogDetailCubit>().openConversation(),
-      );
-    }
     if (state.activeDog == null) {
       return PrimaryButton(
         label: 'Cadastre um cão para interagir',
@@ -293,6 +287,35 @@ class _BottomActions extends StatelessWidget {
           await context.push('/dogs/new');
           await cubit.init(dogId: dogId, card: currentCard);
         },
+      );
+    }
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        ActiveDogSelector.row(
+          label: card.isMatched ? 'Conversando como' : 'Curtir como',
+        ),
+        const SizedBox(height: 12),
+        _ActionButtons(state: state),
+      ],
+    );
+  }
+}
+
+class _ActionButtons extends StatelessWidget {
+  const _ActionButtons({required this.state});
+
+  final DogDetailState state;
+
+  @override
+  Widget build(BuildContext context) {
+    final card = state.card!;
+    if (card.isMatched) {
+      return PrimaryButton(
+        label: 'Abrir conversa 💬',
+        icon: Icons.chat_bubble_outline,
+        loading: state.actionInProgress,
+        onPressed: () => context.read<DogDetailCubit>().openConversation(),
       );
     }
     final canAct = !card.hasMyAction && !state.actionInProgress;

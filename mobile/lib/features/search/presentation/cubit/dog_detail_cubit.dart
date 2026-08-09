@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:dogmatch/core/error/api_exception.dart';
 import 'package:dogmatch/features/discovery/domain/entities/swipe_action.dart';
 import 'package:dogmatch/features/discovery/domain/repositories/discovery_repository.dart';
@@ -24,20 +26,31 @@ class DogDetailCubit extends Cubit<DogDetailState> {
     this._discoveryRepository,
     this._matchRepository,
     this._activeDogCubit,
-  ) : super(const DogDetailState());
+  ) : super(const DogDetailState()) {
+    _activeDogSubscription = _activeDogCubit.stream.listen((activeState) {
+      final dog = activeState.active;
+      if (dog == null || dog.id == state.activeDog?.id) return;
+      _applyActiveDog(dog);
+    });
+  }
 
   final DogRepository _dogRepository;
   final DiscoveryRepository _discoveryRepository;
   final MatchRepository _matchRepository;
   final ActiveDogCubit _activeDogCubit;
 
+  late final StreamSubscription<ActiveDogState> _activeDogSubscription;
+
   /// Match recebido na resposta do swipe — evita refetch em "Abrir conversa".
   MatchModel? _matchFromSwipe;
 
+  /// Descarta a checagem de match de um cão ativo já substituído.
+  int _perspectiveRequestId = 0;
+
   Future<void> init({required String dogId, SearchCardModel? card}) async {
     emit(state.copyWith(status: DogDetailStatus.loading));
+    await _activeDogCubit.ensureLoaded();
     try {
-      final activeDog = await _ensureActiveDog();
       var resolved = card;
       if (resolved == null) {
         final dog = await _dogRepository.getDog(dogId);
@@ -47,14 +60,16 @@ class DogDetailCubit extends Cubit<DogDetailState> {
           owner: dog.owner ?? DogOwnerModel(id: dog.ownerId, name: 'Dono'),
         );
       }
+      if (isClosed) return;
       emit(
         state.copyWith(
           status: DogDetailStatus.success,
           card: resolved,
-          activeDog: activeDog,
+          activeDog: _activeDogCubit.state.active,
         ),
       );
     } on ApiException catch (exception) {
+      if (isClosed) return;
       emit(
         state.copyWith(
           status: DogDetailStatus.error,
@@ -143,18 +158,44 @@ class DogDetailCubit extends Cubit<DogDetailState> {
   /// após o listener da UI consumi-los.
   void clearTransient() => emit(state.copyWith());
 
-  /// Mesmo padrão do Matches: sem seleção, assume o primeiro cão do usuário.
-  /// Falha aqui não bloqueia a tela (apenas esconde as ações).
-  Future<DogModel?> _ensureActiveDog() async {
-    final active = _activeDogCubit.state;
-    if (active != null) return active;
+  /// `myAction`/`matched` valem só para o cão que fez a busca: ao trocar o
+  /// cão ativo, os badges caem e o match é reconsultado para o novo cão.
+  /// Um like repetido é seguro (o `POST /swipes` é idempotente).
+  Future<void> _applyActiveDog(DogModel dog) async {
+    final card = state.card;
+    final requestId = ++_perspectiveRequestId;
+    _matchFromSwipe = null;
+    emit(
+      state.copyWith(
+        activeDog: dog,
+        card: card?.withoutMyPerspective(),
+      ),
+    );
+    if (card == null) return;
     try {
-      final dogs = await _dogRepository.getMyDogs();
-      if (dogs.isEmpty) return null;
-      _activeDogCubit.select(dogs.first);
-      return dogs.first;
+      final matches = await _matchRepository.getMatches(dogId: dog.id);
+      if (isClosed || requestId != _perspectiveRequestId) return;
+      final match =
+          matches.where((match) => match.otherDog.id == card.dog.id).firstOrNull;
+      if (match == null) return;
+      _matchFromSwipe = match;
+      emit(
+        state.copyWith(
+          card: state.card?.copyWith(
+            myAction: SearchCardModel.likeAction,
+            matched: true,
+          ),
+        ),
+      );
     } on ApiException {
-      return null;
+      // Sem confirmação do match, o card segue sem badge e as ações ficam
+      // disponíveis — repetir o like não quebra nada.
     }
+  }
+
+  @override
+  Future<void> close() async {
+    await _activeDogSubscription.cancel();
+    return super.close();
   }
 }

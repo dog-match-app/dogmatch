@@ -7,6 +7,7 @@ import 'package:dogmatch/features/discovery/domain/entities/swipe_action.dart';
 import 'package:dogmatch/features/discovery/presentation/cubit/discovery_cubit.dart';
 import 'package:dogmatch/features/discovery/presentation/widgets/discovery_dog_card.dart';
 import 'package:dogmatch/features/discovery/presentation/widgets/match_dialog.dart';
+import 'package:dogmatch/features/dogs/presentation/widgets/active_dog_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_card_swiper/flutter_card_swiper.dart';
@@ -45,43 +46,7 @@ class _DiscoveryViewState extends State<_DiscoveryView> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Descobrir'),
-        actions: [
-          BlocBuilder<DiscoveryCubit, DiscoveryState>(
-            builder: (context, state) {
-              if (state.myDogs.isEmpty) return const SizedBox.shrink();
-              return Padding(
-                padding: const EdgeInsets.only(right: 8),
-                child: DropdownButtonHideUnderline(
-                  child: DropdownButton<String>(
-                    value: state.activeDog?.id,
-                    icon: const Icon(Icons.arrow_drop_down),
-                    borderRadius: BorderRadius.circular(12),
-                    items: [
-                      for (final dog in state.myDogs)
-                        DropdownMenuItem(
-                          value: dog.id,
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              const Icon(Icons.pets, size: 16),
-                              const SizedBox(width: 6),
-                              Text(dog.name),
-                            ],
-                          ),
-                        ),
-                    ],
-                    onChanged: (dogId) {
-                      if (dogId == null) return;
-                      final dog = state.myDogs
-                          .firstWhere((candidate) => candidate.id == dogId);
-                      context.read<DiscoveryCubit>().selectDog(dog);
-                    },
-                  ),
-                ),
-              );
-            },
-          ),
-        ],
+        actions: const [ActiveDogSelector.compact()],
       ),
       body: BlocConsumer<DiscoveryCubit, DiscoveryState>(
         listener: (context, state) async {

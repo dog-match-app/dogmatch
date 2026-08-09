@@ -17,9 +17,6 @@ class MockSearchRepository extends Mock implements SearchRepository {}
 
 class MockDogRepository extends Mock implements DogRepository {}
 
-class MockActiveDogCubit extends MockCubit<DogModel?>
-    implements ActiveDogCubit {}
-
 DogModel _makeDog(String id, {String name = 'Rex'}) => DogModel(
       id: id,
       ownerId: 'owner-$id',
@@ -40,26 +37,30 @@ SearchCardModel _makeCard(String id, {String name = 'Rex'}) => SearchCardModel(
 
 void main() {
   final myDog = _makeDog('my-dog', name: 'Bidu');
+  final myOtherDog = _makeDog('my-other-dog', name: 'Nina');
   final card1 = _makeCard('dog-1', name: 'Luna');
   final card2 = _makeCard('dog-2', name: 'Thor');
 
   late MockSearchRepository searchRepository;
   late MockDogRepository dogRepository;
-  late MockActiveDogCubit activeDogCubit;
+  late ActiveDogCubit activeDogCubit;
 
   setUpAll(() {
     registerFallbackValue(const SearchFilters());
   });
 
-  setUp(() {
+  setUp(() async {
     searchRepository = MockSearchRepository();
     dogRepository = MockDogRepository();
-    activeDogCubit = MockActiveDogCubit();
-    when(() => activeDogCubit.state).thenReturn(myDog);
+    when(() => dogRepository.getMyDogs())
+        .thenAnswer((_) async => [myDog, myOtherDog]);
+    activeDogCubit = ActiveDogCubit(dogRepository);
+    await activeDogCubit.ensureLoaded();
   });
 
-  SearchCubit buildCubit() =>
-      SearchCubit(searchRepository, dogRepository, activeDogCubit);
+  tearDown(() => activeDogCubit.close());
+
+  SearchCubit buildCubit() => SearchCubit(searchRepository, activeDogCubit);
 
   void stubSearch(SearchResultModel result) {
     when(
@@ -149,6 +150,57 @@ void main() {
             dogId: myDog.id,
             excludeSwiped: false,
             page: 2,
+            limit: 20,
+          ),
+        ).called(1);
+      },
+    );
+
+    blocTest<SearchCubit, SearchState>(
+      'trocar o cão ativo refaz a busca com a perspectiva do novo cão',
+      build: () {
+        stubSearch(
+          SearchResultModel(items: [card1], total: 1, page: 1, pageCount: 1),
+        );
+        return buildCubit();
+      },
+      act: (cubit) async {
+        await cubit.search();
+        activeDogCubit.select(myOtherDog);
+        await cubit.stream
+            .firstWhere((state) => state.status == SearchStatus.success);
+      },
+      expect: () => [
+        const SearchState(status: SearchStatus.loading),
+        SearchState(
+          status: SearchStatus.success,
+          items: [card1],
+          page: 1,
+          total: 1,
+          hasMore: false,
+        ),
+        SearchState(
+          status: SearchStatus.loading,
+          items: [card1],
+          page: 1,
+          total: 1,
+          hasMore: false,
+        ),
+        SearchState(
+          status: SearchStatus.success,
+          items: [card1],
+          page: 1,
+          total: 1,
+          hasMore: false,
+        ),
+      ],
+      verify: (_) {
+        verify(
+          () => searchRepository.search(
+            const SearchFilters(),
+            dogId: myOtherDog.id,
+            excludeSwiped: false,
+            page: 1,
             limit: 20,
           ),
         ).called(1);

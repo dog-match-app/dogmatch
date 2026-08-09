@@ -2,6 +2,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:dogmatch/app/di/injection.dart';
 import 'package:dogmatch/core/widgets/empty_state.dart';
 import 'package:dogmatch/core/widgets/loading_indicator.dart';
+import 'package:dogmatch/features/dogs/presentation/widgets/active_dog_selector.dart';
 import 'package:dogmatch/features/matches/data/models/match_model.dart';
 import 'package:dogmatch/features/matches/presentation/cubit/matches_cubit.dart';
 import 'package:flutter/material.dart';
@@ -37,7 +38,10 @@ class _MatchesView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Matches')),
+      appBar: AppBar(
+        title: const Text('Matches'),
+        actions: const [ActiveDogSelector.compact()],
+      ),
       body: BlocBuilder<MatchesCubit, MatchesState>(
         builder: (context, state) {
           switch (state.status) {
