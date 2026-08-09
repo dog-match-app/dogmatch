@@ -45,11 +45,13 @@ Crie um **Project** (ex.: `dogmatch`) e dentro dele:
 - Conferência rápida (terminal da VPS):
 
   ```bash
-  docker exec -it <container-do-postgres> \
-    psql -U postgres -c "SELECT name FROM pg_available_extensions WHERE name='postgis';"
+  PG=$(docker ps --format '{{.Names}} {{.Image}}' | grep -iE 'postgis|postgres' | awk '{print $1}' | head -1)
+  docker exec -it $PG psql -U postgres -c \
+    "SELECT name FROM pg_available_extensions WHERE name='postgis';"
   ```
 
   Uma linha de resultado = imagem correta. Vazio = imagem sem PostGIS.
+  (Os containers do Coolify têm nome aleatório — por isso filtramos pela imagem.)
 
 ### Redis
 - **+ New → Database → Redis** (padrão já serve; sem porta pública).
@@ -380,7 +382,10 @@ mesmo com as tabelas já criadas.
 Diagnóstico (terminal da VPS):
 
 ```bash
-PG=$(docker ps --format '{{.Names}}' | grep -i postgres | head -1)
+# O Coolify nomeia os containers com o UUID do recurso, então filtre pela IMAGEM.
+# (Atalho: o host que aparece na DATABASE_URL É o nome do container.)
+PG=$(docker ps --format '{{.Names}} {{.Image}}' | grep -iE 'postgis|postgres' | awk '{print $1}' | head -1)
+echo "container do postgres: $PG"
 
 # erro exato que abortou a migration:
 docker exec -it $PG psql -U postgres -c \
