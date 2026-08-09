@@ -255,6 +255,37 @@ separadas** por padrão. Solução: na aplicação, aba **Advanced → ative "Co
 Predefined Network"** e redeploy. Com isso a API entra na rede compartilhada do
 Coolify e passa a resolver os nomes dos containers de banco.
 
+### Gerando os segredos JWT
+
+Rode no seu terminal (Linux/macOS) e cole os valores nas envs. **Um valor
+diferente para cada** — reaproveitar o mesmo segredo nos dois anula a separação
+entre access e refresh token:
+
+```bash
+# imprime as duas linhas já prontas para colar no Coolify:
+echo "JWT_ACCESS_SECRET=$(openssl rand -hex 32)"
+echo "JWT_REFRESH_SECRET=$(openssl rand -hex 32)"
+```
+
+Sem o `openssl` à mão, qualquer um destes serve:
+
+```bash
+python3 -c "import secrets; print(secrets.token_hex(32))"   # 64 chars hex
+head -c 48 /dev/urandom | base64                            # 64 chars base64
+```
+
+Cada comando gera 32 bytes de entropia (64 caracteres em hex) — bem acima do
+mínimo recomendado para HS256, que é o algoritmo usado pelo `@nestjs/jwt` aqui.
+
+Cuidados:
+- **Nunca** reutilize os valores de desenvolvimento (`dev-access-secret-change-me`)
+  em produção: eles estão versionados no repositório, ou seja, são públicos.
+- Não cole segredos em chats, issues ou prints — se um vazar, gere outro e
+  redeploye (todos os usuários simplesmente refazem login).
+- Trocar `JWT_ACCESS_SECRET` invalida os access tokens em circulação; trocar
+  `JWT_REFRESH_SECRET` desloga todo mundo. É exatamente o que se quer em caso de
+  suspeita de vazamento.
+
 - **Environment Variables** (aba Environment):
 
 ```env
@@ -263,9 +294,9 @@ PORT=3000
 # copie as "URL (internal)" dos recursos (ver acima); exemplo do formato:
 DATABASE_URL=postgresql://postgres:SENHA@postgresql-abc123def456:5432/postgres?schema=public
 REDIS_URL=redis://default:SENHA@redis-xyz789:6379
-JWT_ACCESS_SECRET=<64+ chars aleatórios — openssl rand -hex 32>
+JWT_ACCESS_SECRET=<saída do openssl — ver "Gerando os segredos JWT" acima>
 JWT_ACCESS_TTL=15m
-JWT_REFRESH_SECRET=<outro valor aleatório>
+JWT_REFRESH_SECRET=<outra saída, diferente da anterior>
 JWT_REFRESH_TTL=30d
 # Bloco S3_*: copie da opção de storage escolhida na seção 1 (R2 ou MinIO).
 # Regra de ouro: S3_ENDPOINT/S3_PUBLIC_URL usam SEMPRE um endereço que o
