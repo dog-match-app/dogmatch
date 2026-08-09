@@ -50,12 +50,13 @@ run-mobile: ## Roda o app no emulador Android
 	cd mobile && $(FLUTTER) run --dart-define=API_BASE_URL=http://10.0.2.2:3000
 
 IP ?= $(shell hostname -I | awk '{print $$1}')
+API_URL ?= http://$(IP):3000
 APK := mobile/build/app/outputs/flutter-apk/app-release.apk
 ADB := $(shell command -v adb 2>/dev/null || echo $(HOME)/Android/Sdk/platform-tools/adb)
 
-apk: ## Gera APK release apontando p/ o IP local (make apk [IP=192.168.x.x])
-	cd mobile && $(FLUTTER) build apk --release --dart-define=API_BASE_URL=http://$(IP):3000
-	@echo "\nAPK: $(APK) (API em http://$(IP):3000)"
+apk: ## Gera APK release (make apk [IP=192.168.x.x] [API_URL=http://vps:3333])
+	cd mobile && $(FLUTTER) build apk --release --dart-define=API_BASE_URL=$(API_URL)
+	@echo "\nAPK: $(APK) (API em $(API_URL))"
 
 push-apk: ## Copia o APK p/ Download do celular via adb (instalação manual)
 	$(ADB) push $(APK) /sdcard/Download/dogmatch.apk
