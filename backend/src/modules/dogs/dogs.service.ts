@@ -5,7 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { Dog, DogPhoto } from '@prisma/client';
+import { Dog, DogIntent, DogPhoto } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { toDogDto } from './dog.mapper';
 import { AddDogPhotoDto } from './dto/add-dog-photo.dto';
@@ -37,6 +37,7 @@ export class DogsService {
   }
 
   async create(userId: string, dto: CreateDogDto): Promise<DogDto> {
+    this.assertIntentCompatible(dto.neutered ?? false, dto.intent);
     const birthDate = this.parseBirthDate(dto.birthDate);
     const dog = await this.prisma.dog.create({
       data: {
@@ -84,9 +85,13 @@ export class DogsService {
     dogId: string,
     dto: UpdateDogDto,
   ): Promise<DogDto> {
-    await this.getOwnedDog(userId, dogId);
+    const current = await this.getOwnedDog(userId, dogId);
     const { birthDate, whatsapp, instagram, pinterest, telegram, ...rest } =
       dto;
+    this.assertIntentCompatible(
+      dto.neutered ?? current.neutered,
+      dto.intent ?? current.intent,
+    );
     const dog = await this.prisma.dog.update({
       where: { id: dogId },
       data: {
@@ -144,6 +149,16 @@ export class DogsService {
       throw new NotFoundException('Photo not found');
     }
     await this.prisma.dogPhoto.delete({ where: { id: photoId } });
+  }
+
+  // Neutered + breeding-only never passes the deck intent clause anywhere —
+  // the profile would be invisible in every feed (ARCHITECTURE §3.5).
+  private assertIntentCompatible(neutered: boolean, intent: DogIntent): void {
+    if (neutered && intent === DogIntent.BREEDING) {
+      throw new BadRequestException(
+        'NEUTERED_BREEDING_INCOMPATIBLE: a neutered dog cannot have breeding-only intent',
+      );
+    }
   }
 
   private async getOwnedDog(userId: string, dogId: string): Promise<Dog> {

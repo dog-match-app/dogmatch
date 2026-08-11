@@ -69,7 +69,9 @@ npx prisma studio     # inspecionar o banco
 
 ### dogs
 - Mutação só pelo dono (403 via service). Máx **6 fotos** por cão (400). `birthDate`
-  futura ⇒ 400. Delete físico (cascade remove fotos). Regras novas de negócio: service.
+  futura ⇒ 400. Castrado + intent `BREEDING` ⇒ 400 `NEUTERED_BREEDING_INCOMPATIBLE`
+  (perfil invisível em qualquer deck; no update, avalie o ESTADO FINAL mesclado).
+  Delete físico (cascade remove fotos). Regras novas de negócio: service.
 
 ### discovery
 - Query geoespacial em `$queryRaw` com `Prisma.sql` composto (cláusulas de intent:

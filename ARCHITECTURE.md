@@ -346,7 +346,9 @@ OwnerProfileDto { id, name, bio?, avatarUrl?, city?, memberSince,
 | GET | `/health` (sem prefixo) | ✖ | — | Terminus |
 
 Erros relevantes: `409` email duplicado; `401` credenciais/refresh inválidos; `403` recurso
-de outro usuário; `400 LOCATION_REQUIRED` discovery sem localização no perfil.
+de outro usuário; `400 LOCATION_REQUIRED` discovery sem localização no perfil;
+`400 NEUTERED_BREEDING_INCOMPATIBLE` ao criar/editar cão castrado com intenção
+só-cruzamento (perfil seria invisível em qualquer deck — ver §3.5).
 
 ---
 
