@@ -147,4 +147,111 @@ describe('SwipesService', () => {
     expect(txMock.match.create).not.toHaveBeenCalled();
     expect(eventEmitterMock.emit).not.toHaveBeenCalled();
   });
+
+  it('re-swipe PASS -> LIKE updates action + createdAt and creates the match on reverse like', async () => {
+    txMock.swipe.findUnique.mockResolvedValue({
+      id: 'swipe-reverse',
+      swiperDogId: TARGET_DOG_ID,
+      targetDogId: SWIPER_DOG_ID,
+      action: SwipeAction.LIKE,
+      createdAt: new Date(),
+    });
+    txMock.match.create.mockResolvedValue({
+      id: 'match-1',
+      dogAId: TARGET_DOG_ID,
+      dogBId: SWIPER_DOG_ID,
+      createdAt: new Date(),
+      dogA: { ...targetDog, photos: [], owner: makeOwner(USER_B, 'Bruno') },
+      dogB: { ...swiperDog, photos: [], owner: makeOwner(USER_A, 'Ana') },
+      messages: [],
+    });
+
+    const result = await service.swipe(USER_A, {
+      swiperDogId: SWIPER_DOG_ID,
+      targetDogId: TARGET_DOG_ID,
+      action: SwipeAction.LIKE,
+    });
+
+    const upsertArgs = (
+      txMock.swipe.upsert.mock.calls as unknown as [
+        [{ update: { action: SwipeAction; createdAt: Date } }],
+      ]
+    )[0][0];
+    expect(upsertArgs.update.action).toBe(SwipeAction.LIKE);
+    expect(upsertArgs.update.createdAt).toBeInstanceOf(Date);
+    expect(result.matched).toBe(true);
+    expect(result.match?.id).toBe('match-1');
+    expect(eventEmitterMock.emit).toHaveBeenCalledTimes(1);
+  });
+
+  it('re-swipe PASS -> LIKE returns matched=false when the reverse swipe is a PASS', async () => {
+    txMock.swipe.findUnique.mockResolvedValue({
+      id: 'swipe-reverse',
+      swiperDogId: TARGET_DOG_ID,
+      targetDogId: SWIPER_DOG_ID,
+      action: SwipeAction.PASS,
+      createdAt: new Date(),
+    });
+
+    const result = await service.swipe(USER_A, {
+      swiperDogId: SWIPER_DOG_ID,
+      targetDogId: TARGET_DOG_ID,
+      action: SwipeAction.LIKE,
+    });
+
+    expect(result).toEqual({ matched: false });
+    expect(txMock.match.create).not.toHaveBeenCalled();
+    expect(eventEmitterMock.emit).not.toHaveBeenCalled();
+  });
+
+  it('re-LIKE with an existing match returns it without recreating (no unique violation)', async () => {
+    txMock.swipe.findUnique.mockResolvedValue({
+      id: 'swipe-reverse',
+      swiperDogId: TARGET_DOG_ID,
+      targetDogId: SWIPER_DOG_ID,
+      action: SwipeAction.LIKE,
+      createdAt: new Date(),
+    });
+    txMock.match.findUnique.mockResolvedValue({
+      id: 'match-existing',
+      dogAId: TARGET_DOG_ID,
+      dogBId: SWIPER_DOG_ID,
+      createdAt: new Date(),
+      dogA: { ...targetDog, photos: [], owner: makeOwner(USER_B, 'Bruno') },
+      dogB: { ...swiperDog, photos: [], owner: makeOwner(USER_A, 'Ana') },
+      messages: [],
+    });
+
+    const result = await service.swipe(USER_A, {
+      swiperDogId: SWIPER_DOG_ID,
+      targetDogId: TARGET_DOG_ID,
+      action: SwipeAction.LIKE,
+    });
+
+    expect(result.matched).toBe(true);
+    expect(result.match?.id).toBe('match-existing');
+    expect(txMock.match.create).not.toHaveBeenCalled();
+    // The match already exists, so no match.created event is re-emitted.
+    expect(eventEmitterMock.emit).not.toHaveBeenCalled();
+  });
+
+  it('re-PASS only renews createdAt (restarting the feed cooldown window)', async () => {
+    const result = await service.swipe(USER_A, {
+      swiperDogId: SWIPER_DOG_ID,
+      targetDogId: TARGET_DOG_ID,
+      action: SwipeAction.PASS,
+    });
+
+    const upsertArgs = (
+      txMock.swipe.upsert.mock.calls as unknown as [
+        [{ update: { action: SwipeAction; createdAt: Date } }],
+      ]
+    )[0][0];
+    expect(upsertArgs.update.action).toBe(SwipeAction.PASS);
+    expect(upsertArgs.update.createdAt).toBeInstanceOf(Date);
+    expect(result).toEqual({ matched: false });
+    expect(txMock.swipe.findUnique).not.toHaveBeenCalled();
+    expect(txMock.match.create).not.toHaveBeenCalled();
+    expect(eventEmitterMock.emit).not.toHaveBeenCalled();
+  });
 });

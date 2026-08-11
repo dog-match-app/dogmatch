@@ -12,6 +12,14 @@ import { DiscoveryQueryDto } from './dto/discovery-query.dto';
 import { SearchDogsQueryDto, SearchOrderBy } from './dto/search-dogs-query.dto';
 import { SearchCardDto, SearchResultDto } from './dto/search-result.dto';
 
+/**
+ * Feed exclusion by swipe state (ARCHITECTURE §3.5): a LIKE hides the target
+ * from the deck for good; a PASS only hides it for this many days, so passed
+ * dogs come back to the feed once the window expires. Re-swipes refresh the
+ * swipe's createdAt (§3.6), which restarts this window.
+ */
+export const PASS_COOLDOWN_DAYS = 7;
+
 interface DiscoveryRow {
   id: string;
   distance_m: number;
@@ -71,7 +79,10 @@ export class DiscoveryService {
         AND u.latitude IS NOT NULL AND u.longitude IS NOT NULL
         AND NOT EXISTS (SELECT 1 FROM swipes s
                         WHERE s.swiper_dog_id = ${query.dogId}::uuid
-                          AND s.target_dog_id = d.id)
+                          AND s.target_dog_id = d.id
+                          AND (s.action::text = 'LIKE'
+                               OR (s.action::text = 'PASS'
+                                   AND s.created_at > now() - make_interval(days => ${PASS_COOLDOWN_DAYS}::int))))
         AND ST_DWithin(
               ST_SetSRID(ST_MakePoint(u.longitude, u.latitude), 4326)::geography,
               ST_SetSRID(ST_MakePoint(${longitude}, ${latitude}), 4326)::geography,

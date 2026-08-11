@@ -4,9 +4,9 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
-import { SwipeAction } from '@prisma/client';
+import { Prisma, SwipeAction } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
-import { DiscoveryService } from './discovery.service';
+import { DiscoveryService, PASS_COOLDOWN_DAYS } from './discovery.service';
 
 const USER_ID = 'user-ana';
 const OTHER_USER_ID = 'user-bruno';
@@ -53,6 +53,93 @@ const makeDog = (id: string, ownerId: string, name: string) => ({
   updatedAt: new Date(),
   photos: [],
   owner: makeUser(ownerId, { latitude: -23.6, longitude: -46.66 }),
+});
+
+describe('DiscoveryService (discover)', () => {
+  let service: DiscoveryService;
+
+  const prismaMock = {
+    dog: { findUnique: jest.fn(), findMany: jest.fn() },
+    $queryRaw: jest.fn(),
+  };
+
+  beforeEach(async () => {
+    jest.clearAllMocks();
+    prismaMock.dog.findUnique.mockResolvedValue({
+      ...makeDog(MY_DOG_ID, USER_ID, 'Thor'),
+      owner: makeUser(USER_ID, { latitude: -23.5629, longitude: -46.6825 }),
+    });
+
+    const moduleRef = await Test.createTestingModule({
+      providers: [
+        DiscoveryService,
+        { provide: PrismaService, useValue: prismaMock },
+      ],
+    }).compile();
+
+    service = moduleRef.get(DiscoveryService);
+  });
+
+  it('keeps a dog at the exact same location in the deck (distance_m = 0 maps to distanceKm 0)', async () => {
+    prismaMock.$queryRaw.mockResolvedValue([{ id: TARGET_1, distance_m: 0 }]);
+    prismaMock.dog.findMany.mockResolvedValue([
+      makeDog(TARGET_1, OTHER_USER_ID, 'Rex'),
+    ]);
+
+    const cards = await service.discover(USER_ID, { dogId: MY_DOG_ID });
+
+    expect(cards).toHaveLength(1);
+    expect(cards[0].dog.id).toBe(TARGET_1);
+    expect(cards[0].distanceKm).toBe(0);
+    expect(cards[0].owner.id).toBe(OTHER_USER_ID);
+  });
+
+  it('excludes swiped targets via LIKE always but PASS only within the cooldown window', async () => {
+    prismaMock.$queryRaw.mockResolvedValue([]);
+
+    await expect(
+      service.discover(USER_ID, { dogId: MY_DOG_ID }),
+    ).resolves.toEqual([]);
+
+    const sqlArg = (
+      prismaMock.$queryRaw.mock.calls as unknown as [[Prisma.Sql]]
+    )[0][0];
+    expect(sqlArg.sql).toContain(`s.action::text = 'LIKE'`);
+    expect(sqlArg.sql).toContain(`s.action::text = 'PASS'`);
+    expect(sqlArg.sql).toContain('make_interval(days => ?::int)');
+    expect(sqlArg.values).toContain(PASS_COOLDOWN_DAYS);
+  });
+
+  it('rejects a dog the user does not own with 403', async () => {
+    prismaMock.dog.findUnique.mockResolvedValue(
+      makeDog(TARGET_1, OTHER_USER_ID, 'Rex'),
+    );
+
+    await expect(
+      service.discover(USER_ID, { dogId: TARGET_1 }),
+    ).rejects.toThrow(ForbiddenException);
+    expect(prismaMock.$queryRaw).not.toHaveBeenCalled();
+  });
+
+  it('rejects an unknown dog with 404', async () => {
+    prismaMock.dog.findUnique.mockResolvedValue(null);
+
+    await expect(
+      service.discover(USER_ID, { dogId: MY_DOG_ID }),
+    ).rejects.toThrow(NotFoundException);
+  });
+
+  it('rejects a browsing dog whose owner has no location (LOCATION_REQUIRED)', async () => {
+    prismaMock.dog.findUnique.mockResolvedValue({
+      ...makeDog(MY_DOG_ID, USER_ID, 'Thor'),
+      owner: makeUser(USER_ID, { latitude: null, longitude: null }),
+    });
+
+    await expect(
+      service.discover(USER_ID, { dogId: MY_DOG_ID }),
+    ).rejects.toMatchObject({ message: 'LOCATION_REQUIRED' });
+    expect(prismaMock.$queryRaw).not.toHaveBeenCalled();
+  });
 });
 
 describe('DiscoveryService (search)', () => {
@@ -196,6 +283,8 @@ describe('DiscoveryService (search)', () => {
     const result = await service.search(USER_ID, { dogId: MY_DOG_ID });
 
     expect(result.items[0].isMine).toBe(true);
+    // Zero distance must survive the mapping (0 is not "missing").
+    expect(result.items[0].distanceKm).toBe(0);
     expect(result.items[0].myAction).toBeUndefined();
     expect(result.items[0].matched).toBeUndefined();
     expect(result.items[1].isMine).toBe(false);

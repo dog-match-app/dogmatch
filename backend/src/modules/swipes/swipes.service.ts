@@ -55,6 +55,10 @@ export class SwipesService {
         throw new BadRequestException('You cannot swipe your own dog');
       }
 
+      // Re-swipe overwrites the previous action AND refreshes createdAt
+      // (ARCHITECTURE §3.6) — PASS → LIKE undoes an accidental pass. Not
+      // obvious: repeating a PASS also renews createdAt, which restarts the
+      // discovery feed cooldown window (PASS_COOLDOWN_DAYS).
       await tx.swipe.upsert({
         where: {
           swiperDogId_targetDogId: {
@@ -67,7 +71,7 @@ export class SwipesService {
           targetDogId: dto.targetDogId,
           action: dto.action,
         },
-        update: { action: dto.action },
+        update: { action: dto.action, createdAt: new Date() },
       });
 
       if (dto.action !== SwipeAction.LIKE) {
@@ -86,6 +90,9 @@ export class SwipesService {
         return { matched: false };
       }
 
+      // Runs on every swipe whose FINAL action is LIKE — including re-swipes
+      // such as PASS → LIKE. When the pair already matched before, the match
+      // is returned as-is instead of re-created (unique dogAId+dogBId).
       const [dogAId, dogBId] = [dto.swiperDogId, dto.targetDogId].sort();
       const existing = await tx.match.findUnique({
         where: { dogAId_dogBId: { dogAId, dogBId } },
