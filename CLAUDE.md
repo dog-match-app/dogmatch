@@ -33,6 +33,10 @@ Os lados nunca podem divergir do documento.
 - Celular de testes: **Xiaomi que bloqueia `adb install`** — o fluxo é `make apk` +
   `make push-apk` e instalação manual pelo gerenciador de arquivos (mobile/README.md).
 - Node 24 · Docker Compose v5 · infra local nos containers `dogmatch-db|redis|minio`.
+- Banco de PRODUÇÃO (VPS/Coolify): acesso SOMENTE via `scripts/prod-db.sh`
+  (read-only por padrão; escrita exige confirmação explícita do Rodrigo) — de
+  preferência pelo agente `prod-db` (`.claude/agents/`). Chave SSH dedicada:
+  `~/.ssh/dogmatch-prod-db` (autorizada na VPS pelo Rodrigo).
 
 ## Commits (Conventional Commits — estrito)
 
