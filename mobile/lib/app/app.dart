@@ -1,5 +1,6 @@
 import 'package:dogmatch/app/di/injection.dart';
 import 'package:dogmatch/app/router/app_router.dart';
+import 'package:dogmatch/app/session/session_reset.dart';
 import 'package:dogmatch/app/theme/app_theme.dart';
 import 'package:dogmatch/core/services/location_service.dart';
 import 'package:dogmatch/features/auth/presentation/bloc/auth_bloc.dart';
@@ -38,11 +39,12 @@ class _DogMatchAppState extends State<DogMatchApp> {
       value: _authBloc,
       child: BlocListener<AuthBloc, AuthState>(
         listener: (context, state) {
-          final locationService = getIt<LocationService>();
           if (state is AuthAuthenticated) {
-            locationService.startSession();
+            getIt<LocationService>().startSession();
           } else if (state is AuthUnauthenticated) {
-            locationService.endSession();
+            // Fim de sessão: limpeza central de TODO estado por-conta dos
+            // singletons (cães da conta anterior, flags de localização...).
+            getIt<SessionReset>().resetSession();
           }
         },
         child: MaterialApp.router(

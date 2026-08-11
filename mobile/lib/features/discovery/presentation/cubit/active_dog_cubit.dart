@@ -18,6 +18,10 @@ class ActiveDogCubit extends Cubit<ActiveDogState> {
 
   Future<void>? _inFlight;
 
+  /// Incrementado a cada [reset]: cargas da sessão anterior ainda em voo
+  /// são descartadas ao completar (nada da conta antiga pode ser emitido).
+  int _generation = 0;
+
   /// Carrega a lista só na primeira vez (as telas chamam a cada abertura).
   Future<void> ensureLoaded() {
     if (state.status == ActiveDogStatus.ready) return Future<void>.value();
@@ -29,7 +33,12 @@ class ActiveDogCubit extends Cubit<ActiveDogState> {
   Future<void> refresh() {
     final inFlight = _inFlight;
     if (inFlight != null) return inFlight;
-    final request = _load().whenComplete(() => _inFlight = null);
+    late final Future<void> request;
+    request = _load().whenComplete(() {
+      // Após um reset no meio da carga, o in-flight já é de outra sessão —
+      // só o próprio request pode se desregistrar.
+      if (identical(_inFlight, request)) _inFlight = null;
+    });
     _inFlight = request;
     return request;
   }
@@ -39,11 +48,22 @@ class ActiveDogCubit extends Cubit<ActiveDogState> {
     emit(state.copyWith(active: dog));
   }
 
+  /// Encerramento de sessão (logout/expirada): volta ao estado inicial para
+  /// nenhum cão da conta anterior vazar na conta seguinte — sem isto o
+  /// Descobrir consultava o feed com o `dogId` antigo e levava 403. Chamado
+  /// apenas pelo ponto único de reset da sessão (`SessionReset`).
+  void reset() {
+    _generation++;
+    _inFlight = null;
+    emit(const ActiveDogState());
+  }
+
   Future<void> _load() async {
+    final generation = _generation;
     emit(state.copyWith(status: ActiveDogStatus.loading));
     try {
       final dogs = await _dogRepository.getMyDogs();
-      if (isClosed) return;
+      if (isClosed || generation != _generation) return;
       final selectedId = state.active?.id;
       emit(
         ActiveDogState(
@@ -58,7 +78,7 @@ class ActiveDogCubit extends Cubit<ActiveDogState> {
         ),
       );
     } on ApiException catch (exception) {
-      if (isClosed) return;
+      if (isClosed || generation != _generation) return;
       emit(
         state.copyWith(
           status: ActiveDogStatus.error,
