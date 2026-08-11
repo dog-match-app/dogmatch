@@ -31,4 +31,9 @@ export class MatchDto {
 
   @ApiProperty({ nullable: true, type: MessageDto })
   lastMessage!: MessageDto | null;
+
+  @ApiProperty({
+    description: 'Messages from the other owner still unread (readAt null)',
+  })
+  unreadCount!: number;
 }

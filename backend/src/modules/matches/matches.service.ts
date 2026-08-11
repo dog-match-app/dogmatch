@@ -38,7 +38,33 @@ export class MatchesService {
       include: matchInclude,
       orderBy: { createdAt: 'desc' },
     });
-    return matches.map((match) => toMatchDto(match, dogId));
+    if (matches.length === 0) {
+      return [];
+    }
+    // Single aggregated query for the whole page — never one count per match.
+    const unreadRows = await this.prisma.message.groupBy({
+      by: ['matchId'],
+      where: {
+        matchId: { in: matches.map((match) => match.id) },
+        senderId: { not: userId },
+        readAt: null,
+      },
+      _count: { _all: true },
+    });
+    const unreadByMatchId = new Map(
+      unreadRows.map((row) => [row.matchId, row._count._all]),
+    );
+    return matches.map((match) =>
+      toMatchDto(match, dogId, unreadByMatchId.get(match.id) ?? 0),
+    );
+  }
+
+  async markRead(userId: string, matchId: string): Promise<void> {
+    await this.getMatchForUser(userId, matchId);
+    await this.prisma.message.updateMany({
+      where: { matchId, senderId: { not: userId }, readAt: null },
+      data: { readAt: new Date() },
+    });
   }
 
   async getMessages(

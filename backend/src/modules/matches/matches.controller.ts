@@ -2,6 +2,8 @@ import {
   Body,
   Controller,
   Get,
+  HttpCode,
+  HttpStatus,
   Param,
   ParseUUIDPipe,
   Post,
@@ -10,6 +12,7 @@ import {
 import {
   ApiBearerAuth,
   ApiCreatedResponse,
+  ApiNoContentResponse,
   ApiOkResponse,
   ApiTags,
 } from '@nestjs/swagger';
@@ -36,6 +39,18 @@ export class MatchesController {
     @Query() query: MatchesQueryDto,
   ): Promise<MatchDto[]> {
     return this.matchesService.list(user.id, query.dogId);
+  }
+
+  @Post(':id/read')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiNoContentResponse({
+    description: "Other participant's messages marked as read",
+  })
+  markRead(
+    @CurrentUser() user: AuthUser,
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<void> {
+    return this.matchesService.markRead(user.id, id);
   }
 
   @Get(':id/messages')

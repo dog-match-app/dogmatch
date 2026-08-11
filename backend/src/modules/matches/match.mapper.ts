@@ -35,6 +35,7 @@ export function toMessageDto(message: Message): MessageDto {
 export function toMatchDto(
   match: MatchWithRelations,
   myDogId: string,
+  unreadCount = 0,
 ): MatchDto {
   const myDog = match.dogA.id === myDogId ? match.dogA : match.dogB;
   const otherDog = match.dogA.id === myDogId ? match.dogB : match.dogA;
@@ -50,5 +51,6 @@ export function toMatchDto(
       avatarUrl: otherDog.owner.avatarUrl,
     },
     lastMessage: lastMessage ? toMessageDto(lastMessage) : null,
+    unreadCount,
   };
 }
