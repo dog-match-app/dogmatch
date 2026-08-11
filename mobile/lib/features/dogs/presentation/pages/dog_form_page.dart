@@ -59,6 +59,13 @@ class _DogFormViewState extends State<_DogFormView> {
   static const int _minBirthYear = 1995;
 
   final _formKey = GlobalKey<FormState>();
+
+  /// Keys dos campos COM validator, na ordem visual do formulário — usadas
+  /// para rolar até o primeiro erro após uma tentativa de salvar.
+  final _nameFieldKey = GlobalKey<FormFieldState<String>>();
+  final _breedFieldKey = GlobalKey<FormFieldState<String>>();
+  final _birthDateFieldKey = GlobalKey<FormFieldState<String>>();
+
   final _nameController = TextEditingController();
   final _breedController = TextEditingController();
   final _birthDateController = TextEditingController();
@@ -67,7 +74,12 @@ class _DogFormViewState extends State<_DogFormView> {
   final _instagramController = TextEditingController();
   final _pinterestController = TextEditingController();
   final _telegramController = TextEditingController();
+  final _birthDateFocusNode = FocusNode();
   final _imagePicker = ImagePicker();
+
+  /// Ativado na primeira tentativa de salvar: os campos passam a revalidar
+  /// a cada interação — corrigir um erro o faz sumir sem novo Salvar.
+  AutovalidateMode _autovalidateMode = AutovalidateMode.disabled;
 
   DogSex _sex = DogSex.male;
   DogSize _size = DogSize.medium;
@@ -85,6 +97,7 @@ class _DogFormViewState extends State<_DogFormView> {
     super.initState();
     final editingDog = context.read<MyDogsCubit>().state.editingDog;
     if (editingDog != null) _prefill(editingDog);
+    _birthDateFocusNode.addListener(_onBirthDateFocusChange);
   }
 
   @override
@@ -97,7 +110,17 @@ class _DogFormViewState extends State<_DogFormView> {
     _instagramController.dispose();
     _pinterestController.dispose();
     _telegramController.dispose();
+    _birthDateFocusNode.dispose();
     super.dispose();
+  }
+
+  /// A data revalida também ao PERDER o foco (além de a cada dígito, via
+  /// autovalidate) — nunca sobra erro velho depois de corrigir o campo.
+  void _onBirthDateFocusChange() {
+    if (!_birthDateFocusNode.hasFocus &&
+        _autovalidateMode != AutovalidateMode.disabled) {
+      _birthDateFieldKey.currentState?.validate();
+    }
   }
 
   void _prefill(DogModel dog) {
@@ -171,9 +194,38 @@ class _DogFormViewState extends State<_DogFormView> {
     );
   }
 
+  /// Rola o formulário até o primeiro campo inválido (na ordem visual),
+  /// alinhado ao topo com folga — um erro fora da viewport nunca fica
+  /// invisível após o Salvar.
+  void _scrollToFirstInvalidField() {
+    for (final key in [_nameFieldKey, _breedFieldKey, _birthDateFieldKey]) {
+      final field = key.currentState;
+      if (field == null || !field.hasError) continue;
+      final fieldContext = key.currentContext;
+      if (fieldContext != null) {
+        Scrollable.ensureVisible(
+          fieldContext,
+          alignment: 0.08,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeInOut,
+        );
+      }
+      return;
+    }
+  }
+
   void _submit(DogModel? editingDog) {
     FocusScope.of(context).unfocus();
-    if (!_formKey.currentState!.validate()) return;
+    final valid = _formKey.currentState!.validate();
+    if (_autovalidateMode == AutovalidateMode.disabled) {
+      setState(
+        () => _autovalidateMode = AutovalidateMode.onUserInteraction,
+      );
+    }
+    if (!valid) {
+      _scrollToFirstInvalidField();
+      return;
+    }
     // O validator garante uma data completa e válida.
     final birthDate = tryParseBrDate(_birthDateController.text);
     if (birthDate == null) return;
@@ -309,6 +361,7 @@ class _DogFormViewState extends State<_DogFormView> {
               padding: const EdgeInsets.all(24),
               child: Form(
                 key: _formKey,
+                autovalidateMode: _autovalidateMode,
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
@@ -354,6 +407,7 @@ class _DogFormViewState extends State<_DogFormView> {
                       const SizedBox(height: 24),
                     ],
                     AppTextField(
+                      fieldKey: _nameFieldKey,
                       controller: _nameController,
                       label: 'Nome',
                       prefixIcon: Icons.pets,
@@ -368,6 +422,7 @@ class _DogFormViewState extends State<_DogFormView> {
                     ),
                     const SizedBox(height: 16),
                     AppTextField(
+                      fieldKey: _breedFieldKey,
                       controller: _breedController,
                       label: 'Raça',
                       prefixIcon: Icons.badge_outlined,
@@ -402,7 +457,9 @@ class _DogFormViewState extends State<_DogFormView> {
                     ),
                     const SizedBox(height: 16),
                     TextFormField(
+                      key: _birthDateFieldKey,
                       controller: _birthDateController,
+                      focusNode: _birthDateFocusNode,
                       keyboardType: TextInputType.number,
                       inputFormatters: [BrDateInputFormatter()],
                       textInputAction: TextInputAction.next,

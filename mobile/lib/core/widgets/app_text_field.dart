@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 class AppTextField extends StatefulWidget {
   const AppTextField({
     super.key,
+    this.fieldKey,
     this.controller,
     required this.label,
     this.hint,
@@ -17,6 +18,10 @@ class AppTextField extends StatefulWidget {
     this.enabled = true,
     this.onFieldSubmitted,
   });
+
+  /// Key do [TextFormField] interno — permite ao form consultar o
+  /// [FormFieldState] (ex.: rolar até o primeiro campo com erro).
+  final GlobalKey<FormFieldState<String>>? fieldKey;
 
   final TextEditingController? controller;
   final String label;
@@ -42,6 +47,7 @@ class _AppTextFieldState extends State<AppTextField> {
   Widget build(BuildContext context) {
     final obscured = widget.obscureText && _obscured;
     return TextFormField(
+      key: widget.fieldKey,
       controller: widget.controller,
       obscureText: obscured,
       keyboardType: widget.keyboardType,
