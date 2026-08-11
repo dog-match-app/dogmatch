@@ -1,6 +1,8 @@
+import 'dart:async';
+
 import 'package:dogmatch/core/error/api_exception.dart';
-import 'package:dogmatch/core/network/socket_client.dart';
-import 'package:dogmatch/core/storage/token_storage.dart';
+import 'package:dogmatch/core/services/app_notifications_service.dart';
+import 'package:dogmatch/core/services/realtime_service.dart';
 import 'package:dogmatch/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:dogmatch/features/chat/data/models/message_model.dart';
 import 'package:dogmatch/features/chat/domain/repositories/chat_repository.dart';
@@ -13,28 +15,39 @@ import 'package:injectable/injectable.dart';
 part 'chat_state.dart';
 
 /// Conversa de um match: histórico paginado via REST, tempo real via
-/// Socket.IO (`match:join` + `message:send`/`message:new`) com fallback
-/// REST quando o socket está desconectado.
+/// `RealtimeService` (`match:join` + `message:send`/`message:new`) com
+/// fallback REST quando o socket está desconectado.
+///
+/// A conexão do socket pertence à sessão (`RealtimeService`), não a este
+/// cubit: abrir/fechar o chat só entra/sai do room. Abrir a conversa também
+/// registra o chat como "tela ativa" no `AppNotificationsService` (suprime
+/// notificação das mensagens deste match e zera o badge) e marca as
+/// mensagens do outro como lidas (`POST /matches/:id/read`).
 @injectable
 class ChatCubit extends Cubit<ChatState> {
   ChatCubit(
     this._chatRepository,
     this._matchRepository,
-    this._socketClient,
-    this._tokenStorage,
+    this._realtimeService,
+    this._notificationsService,
     this._authBloc,
   ) : super(const ChatState());
 
   final ChatRepository _chatRepository;
   final MatchRepository _matchRepository;
-  final SocketClient _socketClient;
-  final TokenStorage _tokenStorage;
+  final RealtimeService _realtimeService;
+  final AppNotificationsService _notificationsService;
   final AuthBloc _authBloc;
 
-  late String _matchId;
+  String? _matchId;
+
+  StreamSubscription<MessageModel>? _messageSubscription;
 
   Future<void> init({required String matchId, MatchModel? match}) async {
     _matchId = matchId;
+    // Registrado ANTES do carregamento: mensagem chegando pelo socket com a
+    // conversa já em tela não pode virar notificação nem contar no badge.
+    _notificationsService.chatOpened(matchId);
     final authState = _authBloc.state;
     emit(
       state.copyWith(
@@ -59,7 +72,8 @@ class ChatCubit extends Cubit<ChatState> {
           clearNextCursor: page.nextCursor == null,
         ),
       );
-      await _connectSocket();
+      unawaited(_markReadQuietly());
+      await _connectRealtime(matchId);
     } on ApiException catch (exception) {
       emit(
         state.copyWith(
@@ -71,7 +85,7 @@ class ChatCubit extends Cubit<ChatState> {
   }
 
   /// Tenta reabrir a conversa após um erro de carregamento.
-  Future<void> retry() => init(matchId: _matchId, match: state.match);
+  Future<void> retry() => init(matchId: _matchId!, match: state.match);
 
   /// Pagina mensagens mais antigas (scroll no topo da lista).
   Future<void> loadMore() async {
@@ -79,7 +93,7 @@ class ChatCubit extends Cubit<ChatState> {
     emit(state.copyWith(loadingMore: true));
     try {
       final page = await _chatRepository.getMessages(
-        _matchId,
+        _matchId!,
         cursor: state.nextCursor,
       );
       emit(
@@ -102,16 +116,13 @@ class ChatCubit extends Cubit<ChatState> {
   Future<void> send(String content) async {
     final trimmed = content.trim();
     if (trimmed.isEmpty) return;
-    if (_socketClient.isConnected) {
-      _socketClient.emit('message:send', {
-        'matchId': _matchId,
-        'content': trimmed,
-      });
+    if (_realtimeService.isConnected) {
+      _realtimeService.sendMessage(matchId: _matchId!, content: trimmed);
       return;
     }
     emit(state.copyWith(sending: true));
     try {
-      final message = await _chatRepository.sendMessage(_matchId, trimmed);
+      final message = await _chatRepository.sendMessage(_matchId!, trimmed);
       emit(
         state.copyWith(
           sending: false,
@@ -123,24 +134,31 @@ class ChatCubit extends Cubit<ChatState> {
     }
   }
 
-  Future<void> _connectSocket() async {
-    final accessToken = await _tokenStorage.readAccessToken();
-    if (accessToken == null || accessToken.isEmpty) return;
-    _socketClient.connect(accessToken: accessToken);
-    // Reentra no room a cada (re)conexão.
-    _socketClient.onConnect(() {
-      _socketClient.emit('match:join', {'matchId': _matchId});
-    });
-    _socketClient.on('message:new', _onMessageNew);
-    _socketClient.emit('match:join', {'matchId': _matchId});
+  Future<void> _connectRealtime(String matchId) async {
+    await _realtimeService.ensureConnected();
+    _realtimeService.joinMatch(matchId);
+    _messageSubscription ??=
+        _realtimeService.onMessageNew.listen(_onMessageNew);
   }
 
-  void _onMessageNew(dynamic data) {
-    if (isClosed || data is! Map) return;
-    final message =
-        MessageModel.fromJson(Map<String, dynamic>.from(data));
-    if (message.matchId != _matchId) return;
+  void _onMessageNew(MessageModel message) {
+    if (isClosed || message.matchId != _matchId) return;
     emit(state.copyWith(messages: _merge(state.messages, [message])));
+    // Mensagem do outro lida na hora (conversa em tela): mantém o
+    // `unreadCount` do servidor zerado para a lista de matches.
+    if (message.senderId != state.myUserId) unawaited(_markReadQuietly());
+  }
+
+  /// `POST /matches/:id/read` em melhor esforço: falhar não atrapalha a
+  /// conversa — o contador local já foi zerado pela lista/badge.
+  Future<void> _markReadQuietly() async {
+    final matchId = _matchId;
+    if (matchId == null) return;
+    try {
+      await _matchRepository.markRead(matchId);
+    } on ApiException {
+      // Sem rede o servidor re-entrega o contador no próximo fetch.
+    }
   }
 
   /// Mescla com dedup por id e reordena (mais recente primeiro).
@@ -162,9 +180,13 @@ class ChatCubit extends Cubit<ChatState> {
   }
 
   @override
-  Future<void> close() {
-    _socketClient.off('message:new', _onMessageNew);
-    _socketClient.disconnect();
+  Future<void> close() async {
+    final matchId = _matchId;
+    if (matchId != null) {
+      _realtimeService.leaveMatch(matchId);
+      _notificationsService.chatClosed(matchId);
+    }
+    await _messageSubscription?.cancel();
     return super.close();
   }
 }

@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:dogmatch/app/di/injection.dart';
+import 'package:dogmatch/core/services/app_notifications_service.dart';
 import 'package:dogmatch/core/services/location_service.dart';
 import 'package:dogmatch/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:dogmatch/features/auth/presentation/pages/login_page.dart';
@@ -15,7 +16,9 @@ import 'package:dogmatch/features/dogs/presentation/pages/dog_form_page.dart';
 import 'package:dogmatch/features/dogs/presentation/pages/dog_post_composer_page.dart';
 import 'package:dogmatch/features/dogs/presentation/pages/dog_posts_manager_page.dart';
 import 'package:dogmatch/features/matches/data/models/match_model.dart';
+import 'package:dogmatch/features/matches/presentation/cubit/activity_badge_cubit.dart';
 import 'package:dogmatch/features/matches/presentation/pages/matches_page.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:dogmatch/features/owners/presentation/pages/owner_profile_page.dart';
 import 'package:dogmatch/features/profile/presentation/pages/profile_page.dart';
 import 'package:dogmatch/features/search/data/models/search_card_model.dart';
@@ -211,8 +214,17 @@ class _HomeShellState extends State<_HomeShell> {
     // salva no backend nunca caem em LOCATION_REQUIRED e ficariam com a
     // posição desatualizada. O serviço não incomoda em deniedForever.
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      unawaited(getIt<LocationService>().promptPermissionAtSessionStart());
+      unawaited(_requestSessionPermissions());
     });
+  }
+
+  /// Pedidos de permissão do início da sessão, SEQUENCIADOS para nunca
+  /// empilhar dois dialogs do sistema: localização primeiro (fluxo já
+  /// existente), notificações depois — cada um no máximo uma vez por sessão.
+  Future<void> _requestSessionPermissions() async {
+    await getIt<LocationService>().promptPermissionAtSessionStart();
+    if (!mounted) return;
+    await getIt<AppNotificationsService>().requestPermissionAtSessionStart();
   }
 
   @override
@@ -238,8 +250,8 @@ class _HomeShellState extends State<_HomeShell> {
             label: 'Buscar',
           ),
           NavigationDestination(
-            icon: Icon(Icons.favorite_outline),
-            selectedIcon: Icon(Icons.favorite),
+            icon: _MatchesDestinationIcon(icon: Icons.favorite_outline),
+            selectedIcon: _MatchesDestinationIcon(icon: Icons.favorite),
             label: 'Matches',
           ),
           NavigationDestination(
@@ -248,6 +260,29 @@ class _HomeShellState extends State<_HomeShell> {
             label: 'Perfil',
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// Ícone da aba Matches com o badge de atividade: soma de mensagens não
+/// lidas + matches novos + curtidas novas desde a última visita
+/// (`ActivityBadgeCubit`, singleton de sessão).
+class _MatchesDestinationIcon extends StatelessWidget {
+  const _MatchesDestinationIcon({required this.icon});
+
+  final IconData icon;
+
+  @override
+  Widget build(BuildContext context) {
+    return BlocBuilder<ActivityBadgeCubit, ActivityBadgeState>(
+      bloc: getIt<ActivityBadgeCubit>(),
+      builder: (context, state) => Badge.count(
+        count: state.total,
+        isLabelVisible: state.total > 0,
+        backgroundColor: Theme.of(context).colorScheme.primary,
+        textColor: Theme.of(context).colorScheme.onPrimary,
+        child: Icon(icon),
       ),
     );
   }
