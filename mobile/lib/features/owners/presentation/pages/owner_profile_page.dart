@@ -283,7 +283,9 @@ class _OwnerDogCard extends StatelessWidget {
       margin: EdgeInsets.zero,
       clipBehavior: Clip.antiAlias,
       child: InkWell(
-        onTap: () => context.push('/search/dogs/${dog.id}'),
+        // Navegação INTERNA da cadeia detalhe↔dono: substitui a rota atual
+        // para a pilha não crescer — um único voltar sai da cadeia inteira.
+        onTap: () => context.pushReplacement('/search/dogs/${dog.id}'),
         child: Padding(
           padding: const EdgeInsets.all(12),
           child: Row(

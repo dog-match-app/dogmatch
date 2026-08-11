@@ -23,6 +23,10 @@ import 'package:go_router/go_router.dart';
 /// Detalhe de um cão da busca (`/search/dogs/:id`), com abas
 /// "Perfil" | "Posts" (página do cão). Recebe o [SearchCardModel] via extra;
 /// sem extra, busca `GET /dogs/:id`.
+///
+/// Ao sair, o pop devolve o `myAction` final do card (`'LIKE' | 'PASS' |
+/// null`) — o deck do discovery usa esse resultado para remover um cão
+/// curtido/passado aqui dentro.
 class DogDetailPage extends StatelessWidget {
   const DogDetailPage({super.key, required this.dogId, this.card});
 
@@ -51,83 +55,92 @@ class _DogDetailView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return BlocConsumer<DogDetailCubit, DogDetailState>(
-      listener: (context, state) async {
-        final cubit = context.read<DogDetailCubit>();
-        if (state.actionError != null) {
-          cubit.clearTransient();
-          ScaffoldMessenger.of(context)
-            ..hideCurrentSnackBar()
-            ..showSnackBar(SnackBar(content: Text(state.actionError!)));
-        }
-        if (state.matchToOpen != null) {
-          final match = state.matchToOpen!;
-          cubit.clearTransient();
-          context.push('/chat/${match.id}', extra: match);
-        }
-        if (state.pendingMatch != null) {
-          final match = state.pendingMatch!;
-          cubit.clearTransient();
-          await showDialog<void>(
-            context: context,
-            builder: (_) => MatchDialog(match: match),
-          );
-        }
+    // `canPop: false` faz TODA saída (botão do AppBar ou back do sistema)
+    // passar pelo pop com resultado — o `myAction` final do card.
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        context.pop(context.read<DogDetailCubit>().state.card?.myAction);
       },
-      builder: (context, state) {
-        switch (state.status) {
-          case DogDetailStatus.initial:
-          case DogDetailStatus.loading:
-            return Scaffold(
-              appBar: AppBar(),
-              body: const LoadingIndicator(),
+      child: BlocConsumer<DogDetailCubit, DogDetailState>(
+        listener: (context, state) async {
+          final cubit = context.read<DogDetailCubit>();
+          if (state.actionError != null) {
+            cubit.clearTransient();
+            ScaffoldMessenger.of(context)
+              ..hideCurrentSnackBar()
+              ..showSnackBar(SnackBar(content: Text(state.actionError!)));
+          }
+          if (state.matchToOpen != null) {
+            final match = state.matchToOpen!;
+            cubit.clearTransient();
+            context.push('/chat/${match.id}', extra: match);
+          }
+          if (state.pendingMatch != null) {
+            final match = state.pendingMatch!;
+            cubit.clearTransient();
+            await showDialog<void>(
+              context: context,
+              builder: (_) => MatchDialog(match: match),
             );
-          case DogDetailStatus.error:
-            return Scaffold(
-              appBar: AppBar(),
-              body: EmptyState(
-                icon: Icons.error_outline,
-                title: 'Não foi possível carregar',
-                message: state.message,
-                actionLabel: 'Tentar novamente',
-                onAction: () => context
-                    .read<DogDetailCubit>()
-                    .init(dogId: dogId, card: initialCard),
-              ),
-            );
-          case DogDetailStatus.success:
-            final card = state.card!;
-            final dog = card.dog;
-            return DefaultTabController(
-              length: 2,
-              child: Scaffold(
-                appBar: AppBar(
-                  title: Text(dog.name),
-                  bottom: const TabBar(
-                    tabs: [Tab(text: 'Perfil'), Tab(text: 'Posts')],
-                  ),
+          }
+        },
+        builder: (context, state) {
+          switch (state.status) {
+            case DogDetailStatus.initial:
+            case DogDetailStatus.loading:
+              return Scaffold(
+                appBar: AppBar(),
+                body: const LoadingIndicator(),
+              );
+            case DogDetailStatus.error:
+              return Scaffold(
+                appBar: AppBar(),
+                body: EmptyState(
+                  icon: Icons.error_outline,
+                  title: 'Não foi possível carregar',
+                  message: state.message,
+                  actionLabel: 'Tentar novamente',
+                  onAction: () => context
+                      .read<DogDetailCubit>()
+                      .init(dogId: dogId, card: initialCard),
                 ),
-                body: TabBarView(
-                  children: [
-                    _ProfileTab(card: card),
-                    _PostsTab(dog: dog),
-                  ],
-                ),
-                // Cão do próprio usuário (aberto via "Meus cães") não tem
-                // ações de swipe — o backend rejeita swipe no próprio cão.
-                bottomNavigationBar: switch (context.read<AuthBloc>().state) {
-                  AuthAuthenticated(user: final me)
-                      when me.id == dog.ownerId =>
-                    null,
-                  _ => SafeArea(
-                      minimum: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-                      child: _BottomActions(state: state, dogId: dogId),
+              );
+            case DogDetailStatus.success:
+              final card = state.card!;
+              final dog = card.dog;
+              return DefaultTabController(
+                length: 2,
+                child: Scaffold(
+                  appBar: AppBar(
+                    title: Text(dog.name),
+                    bottom: const TabBar(
+                      tabs: [Tab(text: 'Perfil'), Tab(text: 'Posts')],
                     ),
-                },
-              ),
-            );
-        }
-      },
+                  ),
+                  body: TabBarView(
+                    children: [
+                      _ProfileTab(card: card),
+                      _PostsTab(dog: dog),
+                    ],
+                  ),
+                  // Cão do próprio usuário (aberto via "Meus cães") não tem
+                  // ações de swipe — o backend rejeita swipe no próprio cão.
+                  bottomNavigationBar: switch (context.read<AuthBloc>().state) {
+                    AuthAuthenticated(user: final me)
+                        when me.id == dog.ownerId =>
+                      null,
+                    _ => SafeArea(
+                        minimum: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                        child: _BottomActions(state: state, dogId: dogId),
+                      ),
+                  },
+                ),
+              );
+          }
+        },
+      ),
     );
   }
 }
@@ -440,7 +453,10 @@ class _OwnerCard extends StatelessWidget {
       margin: EdgeInsets.zero,
       clipBehavior: Clip.antiAlias,
       child: ListTile(
-        onTap: () => context.push('/owners/${owner.id}'),
+        // Navegação INTERNA da cadeia detalhe↔dono: substitui a rota atual
+        // para a pilha não crescer — um único voltar sai da cadeia inteira,
+        // direto para a tela de origem (busca, deck, meus cães...).
+        onTap: () => context.pushReplacement('/owners/${owner.id}'),
         leading: CircleAvatar(
           backgroundColor: theme.colorScheme.primaryContainer,
           backgroundImage: owner.avatarUrl == null
