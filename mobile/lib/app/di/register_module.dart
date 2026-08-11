@@ -5,6 +5,7 @@ import 'package:dogmatch/core/network/socket_client.dart';
 import 'package:dogmatch/core/storage/token_storage.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:injectable/injectable.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 /// Registra dependências de terceiros / construídas por fábrica.
 @module
@@ -21,4 +22,9 @@ abstract class RegisterModule {
 
   @lazySingleton
   SocketClient get socketClient => SocketClient();
+
+  // API async do shared_preferences (sem `getInstance` bloqueante); o app
+  // só a acessa pelo wrapper `AppPreferences` (core/storage/).
+  @lazySingleton
+  SharedPreferencesAsync get sharedPreferences => SharedPreferencesAsync();
 }

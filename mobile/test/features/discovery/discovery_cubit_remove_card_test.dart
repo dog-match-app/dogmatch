@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:bloc_test/bloc_test.dart';
 import 'package:dogmatch/core/services/location_service.dart';
+import 'package:dogmatch/core/storage/app_preferences.dart';
 import 'package:dogmatch/features/auth/data/models/user_model.dart';
 import 'package:dogmatch/features/discovery/data/models/discovery_card_model.dart';
 import 'package:dogmatch/features/discovery/data/models/swipe_result_model.dart';
@@ -20,6 +21,8 @@ class MockDiscoveryRepository extends Mock implements DiscoveryRepository {}
 class MockDogRepository extends Mock implements DogRepository {}
 
 class MockLocationService extends Mock implements LocationService {}
+
+class MockAppPreferences extends Mock implements AppPreferences {}
 
 DogModel _makeDog(String id, {String name = 'Rex'}) => DogModel(
   id: id,
@@ -50,12 +53,14 @@ void main() {
   late MockDogRepository dogRepository;
   late ActiveDogCubit activeDogCubit;
   late MockLocationService locationService;
+  late MockAppPreferences appPreferences;
   late StreamController<UserModel> locationSyncController;
 
   setUp(() {
     discoveryRepository = MockDiscoveryRepository();
     dogRepository = MockDogRepository();
     locationService = MockLocationService();
+    appPreferences = MockAppPreferences();
     locationSyncController = StreamController<UserModel>.broadcast();
     when(
       () => locationService.onLocationSynced,
@@ -69,8 +74,12 @@ void main() {
     await activeDogCubit.close();
   });
 
-  DiscoveryCubit buildCubit() =>
-      DiscoveryCubit(discoveryRepository, activeDogCubit, locationService);
+  DiscoveryCubit buildCubit() => DiscoveryCubit(
+    discoveryRepository,
+    activeDogCubit,
+    locationService,
+    appPreferences,
+  );
 
   group('DiscoveryCubit.removeCard — like/pass feito dentro do detalhe', () {
     blocTest<DiscoveryCubit, DiscoveryState>(
@@ -93,7 +102,10 @@ void main() {
       ],
       verify: (_) {
         verifyNever(
-          () => discoveryRepository.getFeed(dogId: any(named: 'dogId')),
+          () => discoveryRepository.getFeed(
+            dogId: any(named: 'dogId'),
+            radiusKm: any(named: 'radiusKm'),
+          ),
         );
       },
     );
@@ -111,7 +123,10 @@ void main() {
       expect: () => const <DiscoveryState>[],
       verify: (_) {
         verifyNever(
-          () => discoveryRepository.getFeed(dogId: any(named: 'dogId')),
+          () => discoveryRepository.getFeed(
+            dogId: any(named: 'dogId'),
+            radiusKm: any(named: 'radiusKm'),
+          ),
         );
       },
     );
@@ -167,7 +182,10 @@ void main() {
       'cai no estado vazio quando o feed não devolve cards)',
       build: () {
         when(
-          () => discoveryRepository.getFeed(dogId: myDog.id),
+          () => discoveryRepository.getFeed(
+            dogId: myDog.id,
+            radiusKm: DiscoveryState.defaultRadiusKm,
+          ),
         ).thenAnswer((_) async => <DiscoveryCardModel>[]);
         return buildCubit();
       },
@@ -193,7 +211,12 @@ void main() {
         ),
       ],
       verify: (_) {
-        verify(() => discoveryRepository.getFeed(dogId: myDog.id)).called(1);
+        verify(
+          () => discoveryRepository.getFeed(
+            dogId: myDog.id,
+            radiusKm: DiscoveryState.defaultRadiusKm,
+          ),
+        ).called(1);
       },
     );
   });

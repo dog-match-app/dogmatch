@@ -41,14 +41,6 @@ void main() {
     distanceKm: 2.3,
     owner: const DiscoveryOwnerModel(id: 'owner-dog-1', name: 'Tutora'),
   );
-  final user = UserModel(
-    id: 'user-1',
-    email: 'ana@demo.com',
-    name: 'Ana',
-    latitude: -23.5505,
-    longitude: -46.6333,
-    createdAt: DateTime.utc(2026),
-  );
 
   late MockDiscoveryRepository discoveryRepository;
   late MockDogRepository dogRepository;
@@ -81,59 +73,110 @@ void main() {
         appPreferences,
       );
 
-  group('DiscoveryCubit — localização sincronizada', () {
+  group('DiscoveryCubit — raio máximo configurável', () {
+    test('init usa o raio persistido no GET /discovery', () async {
+      when(() => appPreferences.getDiscoveryRadiusKm())
+          .thenAnswer((_) async => 120);
+      when(
+        () => discoveryRepository.getFeed(dogId: myDog.id, radiusKm: 120),
+      ).thenAnswer((_) async => [card]);
+
+      final cubit = buildCubit();
+      await cubit.init();
+      // O feed dispara pelo listener do cão ativo; aguarda a fila esvaziar.
+      await pumpEventQueue();
+
+      expect(cubit.state.status, DiscoveryStatus.loaded);
+      expect(cubit.state.radiusKm, 120);
+      expect(cubit.state.cards, [card]);
+      verify(
+        () => discoveryRepository.getFeed(dogId: myDog.id, radiusKm: 120),
+      ).called(1);
+      await cubit.close();
+    });
+
+    test('sem preferência salva, init mantém o padrão do backend (50 km)',
+        () async {
+      when(() => appPreferences.getDiscoveryRadiusKm())
+          .thenAnswer((_) async => null);
+      when(
+        () => discoveryRepository.getFeed(
+          dogId: myDog.id,
+          radiusKm: DiscoveryState.defaultRadiusKm,
+        ),
+      ).thenAnswer((_) async => [card]);
+
+      final cubit = buildCubit();
+      await cubit.init();
+      await pumpEventQueue();
+
+      expect(cubit.state.radiusKm, DiscoveryState.defaultRadiusKm);
+      verify(
+        () => discoveryRepository.getFeed(
+          dogId: myDog.id,
+          radiusKm: DiscoveryState.defaultRadiusKm,
+        ),
+      ).called(1);
+      await cubit.close();
+    });
+
     blocTest<DiscoveryCubit, DiscoveryState>(
-      'em locationRequired, recarrega o deck ao receber onLocationSynced',
+      'trocar o raio persiste a preferência e recarrega o deck',
       build: () {
+        when(() => appPreferences.setDiscoveryRadiusKm(any()))
+            .thenAnswer((_) async {});
         when(
-          () => discoveryRepository.getFeed(
-            dogId: myDog.id,
-            radiusKm: DiscoveryState.defaultRadiusKm,
-          ),
+          () => discoveryRepository.getFeed(dogId: myDog.id, radiusKm: 25),
         ).thenAnswer((_) async => [card]);
         return buildCubit();
       },
       seed: () => DiscoveryState(
-        status: DiscoveryStatus.locationRequired,
+        status: DiscoveryStatus.loaded,
         activeDog: myDog,
+        deckKey: 1,
       ),
-      act: (cubit) async {
-        locationSyncController.add(user);
-        await cubit.stream
-            .firstWhere((state) => state.status == DiscoveryStatus.loaded);
-      },
+      act: (cubit) => cubit.changeRadius(25),
       expect: () => [
-        DiscoveryState(status: DiscoveryStatus.loading, activeDog: myDog),
+        DiscoveryState(
+          status: DiscoveryStatus.loaded,
+          activeDog: myDog,
+          deckKey: 1,
+          radiusKm: 25,
+        ),
+        DiscoveryState(
+          status: DiscoveryStatus.loading,
+          activeDog: myDog,
+          deckKey: 1,
+          radiusKm: 25,
+        ),
         DiscoveryState(
           status: DiscoveryStatus.loaded,
           activeDog: myDog,
           cards: [card],
-          deckKey: 1,
+          deckKey: 2,
+          radiusKm: 25,
         ),
       ],
       verify: (_) {
+        verify(() => appPreferences.setDiscoveryRadiusKm(25)).called(1);
         verify(
-          () => discoveryRepository.getFeed(
-            dogId: myDog.id,
-            radiusKm: DiscoveryState.defaultRadiusKm,
-          ),
+          () => discoveryRepository.getFeed(dogId: myDog.id, radiusKm: 25),
         ).called(1);
       },
     );
 
     blocTest<DiscoveryCubit, DiscoveryState>(
-      'fora de locationRequired, onLocationSynced não refaz o feed',
+      'aplicar o mesmo raio é no-op (não persiste nem recarrega)',
       build: buildCubit,
       seed: () => DiscoveryState(
         status: DiscoveryStatus.loaded,
         activeDog: myDog,
-        cards: [card],
         deckKey: 1,
       ),
-      act: (cubit) => locationSyncController.add(user),
-      wait: const Duration(milliseconds: 50),
+      act: (cubit) => cubit.changeRadius(DiscoveryState.defaultRadiusKm),
       expect: () => const <DiscoveryState>[],
       verify: (_) {
+        verifyNever(() => appPreferences.setDiscoveryRadiusKm(any()));
         verifyNever(
           () => discoveryRepository.getFeed(
             dogId: any(named: 'dogId'),

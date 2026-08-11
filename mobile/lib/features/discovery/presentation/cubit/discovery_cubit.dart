@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:dogmatch/core/error/api_exception.dart';
 import 'package:dogmatch/core/services/location_service.dart';
+import 'package:dogmatch/core/storage/app_preferences.dart';
 import 'package:dogmatch/features/auth/data/models/user_model.dart';
 import 'package:dogmatch/features/discovery/data/models/discovery_card_model.dart';
 import 'package:dogmatch/features/discovery/domain/entities/swipe_action.dart';
@@ -21,6 +22,7 @@ class DiscoveryCubit extends Cubit<DiscoveryState> {
     this._discoveryRepository,
     this._activeDogCubit,
     this._locationService,
+    this._appPreferences,
   ) : super(const DiscoveryState()) {
     _activeDogSubscription = _activeDogCubit.stream.listen((activeState) {
       final dog = activeState.active;
@@ -37,6 +39,7 @@ class DiscoveryCubit extends Cubit<DiscoveryState> {
   final DiscoveryRepository _discoveryRepository;
   final ActiveDogCubit _activeDogCubit;
   final LocationService _locationService;
+  final AppPreferences _appPreferences;
 
   late final StreamSubscription<ActiveDogState> _activeDogSubscription;
   late final StreamSubscription<UserModel> _locationSyncSubscription;
@@ -55,7 +58,11 @@ class DiscoveryCubit extends Cubit<DiscoveryState> {
 
   Future<void> init() async {
     final requestId = ++_feedRequestId;
-    emit(state.copyWith(status: DiscoveryStatus.loading));
+    // O raio precisa estar definido ANTES do refresh dos cães: a troca de
+    // cão pelo listener pode disparar o primeiro `_loadFeed`.
+    final radiusKm = await _readStoredRadius();
+    if (isClosed) return;
+    emit(state.copyWith(status: DiscoveryStatus.loading, radiusKm: radiusKm));
     await _activeDogCubit.refresh();
     // A troca de cão pelo listener já recarregou o deck.
     if (isClosed || requestId != _feedRequestId) return;
@@ -79,6 +86,19 @@ class DiscoveryCubit extends Cubit<DiscoveryState> {
   }
 
   Future<void> refreshDeck() => _loadFeed();
+
+  /// Aplica o novo raio máximo (sheet do AppBar), persiste a preferência e
+  /// recarrega o deck. Falha ao persistir não impede o raio de valer já.
+  Future<void> changeRadius(int radiusKm) async {
+    if (radiusKm == state.radiusKm) return;
+    emit(state.copyWith(radiusKm: radiusKm));
+    try {
+      await _appPreferences.setDiscoveryRadiusKm(radiusKm);
+    } on Exception {
+      // Best-effort: sem persistência o valor ainda vale nesta sessão.
+    }
+    await _loadFeed();
+  }
 
   /// Chamado pelo CardSwiper quando o deck acaba: busca a próxima leva.
   Future<void> onDeckFinished() async {
@@ -151,7 +171,10 @@ class DiscoveryCubit extends Cubit<DiscoveryState> {
     final requestId = ++_feedRequestId;
     emit(state.copyWith(status: DiscoveryStatus.loading));
     try {
-      final cards = await _discoveryRepository.getFeed(dogId: activeDog.id);
+      final cards = await _discoveryRepository.getFeed(
+        dogId: activeDog.id,
+        radiusKm: state.radiusKm,
+      );
       if (isClosed || requestId != _feedRequestId) return;
       _consumedDogIds.clear();
       emit(
@@ -173,6 +196,16 @@ class DiscoveryCubit extends Cubit<DiscoveryState> {
           ),
         );
       }
+    }
+  }
+
+  /// Raio persistido (ou o atual, se a leitura falhar — preferência nunca
+  /// pode derrubar o feed).
+  Future<int> _readStoredRadius() async {
+    try {
+      return await _appPreferences.getDiscoveryRadiusKm() ?? state.radiusKm;
+    } on Exception {
+      return state.radiusKm;
     }
   }
 

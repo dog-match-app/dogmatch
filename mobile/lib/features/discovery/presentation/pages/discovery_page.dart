@@ -8,6 +8,7 @@ import 'package:dogmatch/features/discovery/data/models/discovery_card_model.dar
 import 'package:dogmatch/features/discovery/domain/entities/swipe_action.dart';
 import 'package:dogmatch/features/discovery/presentation/cubit/discovery_cubit.dart';
 import 'package:dogmatch/features/discovery/presentation/widgets/discovery_dog_card.dart';
+import 'package:dogmatch/features/discovery/presentation/widgets/discovery_radius_sheet.dart';
 import 'package:dogmatch/features/discovery/presentation/widgets/match_dialog.dart';
 import 'package:dogmatch/features/dogs/presentation/widgets/active_dog_selector.dart';
 import 'package:dogmatch/features/search/data/models/search_card_model.dart';
@@ -60,12 +61,49 @@ class _DiscoveryViewState extends State<_DiscoveryView> {
     if (action != null) await cubit.removeCard(card.dog.id);
   }
 
+  /// Sheet do raio máximo; Aplicar devolve o valor e o cubit persiste a
+  /// preferência e recarrega o deck.
+  Future<void> _openRadiusSheet(BuildContext context) async {
+    final cubit = context.read<DiscoveryCubit>();
+    final radiusKm = await showModalBottomSheet<int>(
+      context: context,
+      showDragHandle: true,
+      builder: (_) =>
+          DiscoveryRadiusSheet(initialRadiusKm: cubit.state.radiusKm),
+    );
+    if (radiusKm != null) await cubit.changeRadius(radiusKm);
+  }
+
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Descobrir'),
-        actions: const [ActiveDogSelector.compact()],
+        // Título com o raio atual embaixo — o valor aplicado no sheet fica
+        // sempre visível ("até X km").
+        title: BlocSelector<DiscoveryCubit, DiscoveryState, int>(
+          selector: (state) => state.radiusKm,
+          builder: (context, radiusKm) => Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text('Descobrir'),
+              Text(
+                'até $radiusKm km',
+                style: theme.textTheme.labelSmall
+                    ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          IconButton(
+            tooltip: 'Raio de sugestões',
+            icon: const Icon(Icons.tune),
+            onPressed: () => _openRadiusSheet(context),
+          ),
+          const ActiveDogSelector.compact(),
+        ],
       ),
       body: BlocConsumer<DiscoveryCubit, DiscoveryState>(
         listener: (context, state) async {

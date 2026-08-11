@@ -15,10 +15,14 @@ class DiscoveryState extends Equatable {
     this.activeDog,
     this.cards = const [],
     this.deckKey = 0,
+    this.radiusKm = defaultRadiusKm,
     this.pendingMatch,
     this.errorMessage,
     this.swipeError,
   });
+
+  /// Mesmo padrão do backend quando `radiusKm` não é enviado.
+  static const int defaultRadiusKm = 50;
 
   final DiscoveryStatus status;
 
@@ -28,6 +32,10 @@ class DiscoveryState extends Equatable {
 
   /// Incrementado a cada novo deck para recriar o CardSwiper.
   final int deckKey;
+
+  /// Raio máximo (km) das sugestões, enviado como `radiusKm` no feed —
+  /// preferência local persistida entre sessões (`AppPreferences`).
+  final int radiusKm;
 
   /// Match recém-criado aguardando o dialog "Deu match!".
   final MatchModel? pendingMatch;
@@ -42,6 +50,7 @@ class DiscoveryState extends Equatable {
     DogModel? activeDog,
     List<DiscoveryCardModel>? cards,
     int? deckKey,
+    int? radiusKm,
     MatchModel? pendingMatch,
     String? errorMessage,
     String? swipeError,
@@ -51,6 +60,7 @@ class DiscoveryState extends Equatable {
       activeDog: activeDog ?? this.activeDog,
       cards: cards ?? this.cards,
       deckKey: deckKey ?? this.deckKey,
+      radiusKm: radiusKm ?? this.radiusKm,
       pendingMatch: pendingMatch,
       errorMessage: errorMessage,
       swipeError: swipeError,
@@ -63,6 +73,7 @@ class DiscoveryState extends Equatable {
         activeDog,
         cards,
         deckKey,
+        radiusKm,
         pendingMatch,
         errorMessage,
         swipeError,

@@ -11,10 +11,12 @@
 // ignore_for_file: no_leading_underscores_for_library_prefixes
 import 'package:dio/dio.dart' as _i361;
 import 'package:dogmatch/app/di/register_module.dart' as _i496;
+import 'package:dogmatch/app/session/session_reset.dart' as _i80;
 import 'package:dogmatch/core/network/auth_session_manager.dart' as _i838;
 import 'package:dogmatch/core/network/file_uploader.dart' as _i416;
 import 'package:dogmatch/core/network/socket_client.dart' as _i989;
 import 'package:dogmatch/core/services/location_service.dart' as _i234;
+import 'package:dogmatch/core/storage/app_preferences.dart' as _i862;
 import 'package:dogmatch/core/storage/token_storage.dart' as _i478;
 import 'package:dogmatch/features/auth/data/repositories/auth_repository_impl.dart'
     as _i750;
@@ -83,6 +85,7 @@ import 'package:dogmatch/features/search/presentation/cubit/search_cubit.dart'
 import 'package:flutter_secure_storage/flutter_secure_storage.dart' as _i558;
 import 'package:get_it/get_it.dart' as _i174;
 import 'package:injectable/injectable.dart' as _i526;
+import 'package:shared_preferences/shared_preferences.dart' as _i460;
 
 extension GetItInjectableX on _i174.GetIt {
   // initializes the registration of main-scope dependencies inside of GetIt
@@ -96,9 +99,17 @@ extension GetItInjectableX on _i174.GetIt {
       () => registerModule.secureStorage,
     );
     gh.lazySingleton<_i989.SocketClient>(() => registerModule.socketClient);
+    gh.lazySingleton<_i460.SharedPreferencesAsync>(
+      () => registerModule.sharedPreferences,
+    );
     gh.lazySingleton<_i838.AuthSessionManager>(
       () => _i838.AuthSessionManager(),
       dispose: (i) => i.dispose(),
+    );
+    gh.lazySingleton<_i862.AppPreferences>(
+      () => _i862.SharedPreferencesAppPreferences(
+        gh<_i460.SharedPreferencesAsync>(),
+      ),
     );
     gh.lazySingleton<_i234.LocationGateway>(
       () => _i234.GeolocatorLocationGateway(),
@@ -197,17 +208,24 @@ extension GetItInjectableX on _i174.GetIt {
         gh<_i234.LocationService>(),
       ),
     );
+    gh.factory<_i691.MyDogsCubit>(
+      () => _i691.MyDogsCubit(
+        gh<_i1052.DogRepository>(),
+        gh<_i230.ActiveDogCubit>(),
+      ),
+    );
     gh.factory<_i290.DiscoveryCubit>(
       () => _i290.DiscoveryCubit(
         gh<_i557.DiscoveryRepository>(),
         gh<_i230.ActiveDogCubit>(),
         gh<_i234.LocationService>(),
+        gh<_i862.AppPreferences>(),
       ),
     );
-    gh.factory<_i691.MyDogsCubit>(
-      () => _i691.MyDogsCubit(
-        gh<_i1052.DogRepository>(),
+    gh.lazySingleton<_i80.SessionReset>(
+      () => _i80.SessionReset(
         gh<_i230.ActiveDogCubit>(),
+        gh<_i234.LocationService>(),
       ),
     );
     gh.factory<_i996.DogDetailCubit>(
