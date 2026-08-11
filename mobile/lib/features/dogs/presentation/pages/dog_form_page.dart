@@ -3,6 +3,7 @@ import 'package:dogmatch/app/di/injection.dart';
 import 'package:dogmatch/core/network/file_uploader.dart';
 import 'package:dogmatch/core/utils/date_input.dart';
 import 'package:dogmatch/core/widgets/app_text_field.dart';
+import 'package:dogmatch/core/widgets/empty_state.dart';
 import 'package:dogmatch/core/widgets/loading_indicator.dart';
 import 'package:dogmatch/core/widgets/primary_button.dart';
 import 'package:dogmatch/features/dogs/data/models/dog_model.dart';
@@ -35,15 +36,17 @@ class DogFormPage extends StatelessWidget {
         }
         return cubit;
       },
-      child: _DogFormView(isCreating: dogId == null),
+      child: _DogFormView(dogId: dogId),
     );
   }
 }
 
 class _DogFormView extends StatefulWidget {
-  const _DogFormView({required this.isCreating});
+  const _DogFormView({required this.dogId});
 
-  final bool isCreating;
+  final String? dogId;
+
+  bool get isCreating => dogId == null;
 
   @override
   State<_DogFormView> createState() => _DogFormViewState();
@@ -73,6 +76,17 @@ class _DogFormViewState extends State<_DogFormView> {
   bool _pedigree = false;
   bool _prefilled = false;
 
+  /// O cão vindo via `extra` é emitido de forma síncrona dentro do `create`
+  /// do BlocProvider — antes de o BlocConsumer assinar o stream —, então o
+  /// listener nunca vê esse estado. O preenchimento inicial precisa ler o
+  /// estado atual aqui; o listener cobre apenas o fallback (`GET /dogs/:id`).
+  @override
+  void initState() {
+    super.initState();
+    final editingDog = context.read<MyDogsCubit>().state.editingDog;
+    if (editingDog != null) _prefill(editingDog);
+  }
+
   @override
   void dispose() {
     _nameController.dispose();
@@ -97,13 +111,11 @@ class _DogFormViewState extends State<_DogFormView> {
     _instagramController.text = dog.social?.instagram ?? '';
     _pinterestController.text = dog.social?.pinterest ?? '';
     _telegramController.text = dog.social?.telegram ?? '';
-    setState(() {
-      _sex = dog.sex;
-      _size = dog.size;
-      _intent = dog.intent;
-      _neutered = dog.neutered;
-      _pedigree = dog.pedigree;
-    });
+    _sex = dog.sex;
+    _size = dog.size;
+    _intent = dog.intent;
+    _neutered = dog.neutered;
+    _pedigree = dog.pedigree;
   }
 
   /// Calendário como atalho: lê/escreve no MESMO controller do campo de
@@ -263,12 +275,20 @@ class _DogFormViewState extends State<_DogFormView> {
       builder: (context, state) {
         final editingDog = state.editingDog;
         final isEditing = editingDog != null;
-        if (!widget.isCreating &&
-            editingDog == null &&
-            state.status != MyDogsStatus.error) {
+        if (!widget.isCreating && editingDog == null) {
           return Scaffold(
             appBar: AppBar(title: const Text('Editar cão')),
-            body: const LoadingIndicator(),
+            body: state.status == MyDogsStatus.error
+                ? EmptyState(
+                    icon: Icons.error_outline,
+                    title: 'Não foi possível carregar o cão',
+                    message: state.errorMessage,
+                    actionLabel: 'Tentar novamente',
+                    onAction: () => context
+                        .read<MyDogsCubit>()
+                        .loadForEdit(widget.dogId!),
+                  )
+                : const LoadingIndicator(),
           );
         }
         return Scaffold(
