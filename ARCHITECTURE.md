@@ -297,7 +297,12 @@ SearchCardDto  { dog: DogDto, distanceKm?: number|null,
 SearchResultDto { items: SearchCardDto[], total, page, pageCount }
 SwipeResultDto { matched: boolean, match?: MatchDto }
 MatchDto       { id, createdAt, myDog: DogDto, otherDog: DogDto,
-                 otherOwner: { id, name, avatarUrl? }, lastMessage?: MessageDto }
+                 otherOwner: { id, name, avatarUrl? }, lastMessage?: MessageDto,
+                 unreadCount: number }   // mensagens do outro sem readAt
+LikeReceivedDto  { dog: DogDto, distanceKm?: number|null,
+                   owner: { id, name, city?, avatarUrl? },
+                   likedAt, myAction: 'PASS'|null }
+LikesReceivedDto { items: LikeReceivedDto[], total }
 MessageDto     { id, matchId, senderId, content, createdAt, readAt? }
 PresignedUploadDto { uploadUrl, publicUrl, key, expiresIn }
 OwnerProfileDto { id, name, bio?, avatarUrl?, city?, memberSince,
@@ -333,6 +338,8 @@ OwnerProfileDto { id, name, bio?, avatarUrl?, city?, memberSince,
 | GET | `/discovery` | ✔ | `?dogId=&radiusKm=50&limit=20` | `DiscoveryCardDto[]` |
 | GET | `/discovery/search` | ✔ | filtros do §3.5.1 | `SearchResultDto` |
 | POST | `/swipes` | ✔ | `{ swiperDogId, targetDogId, action: 'LIKE'\|'PASS' }` | `SwipeResultDto` |
+| GET | `/swipes/received` | ✔ (dono) | `?dogId=` — likes recebidos pelo cão **sem** like recíproco e **sem** match; inclui os que você passou (`myAction: 'PASS'`, reversível); ordem `likedAt desc` | `LikesReceivedDto` |
+| POST | `/matches/:id/read` | ✔ (participante) | — marca como lidas as mensagens do outro | 204 |
 | GET | `/matches` | ✔ | `?dogId=` | `MatchDto[]` |
 | GET | `/matches/:id/messages` | ✔ | `?cursor=&limit=30` | `{ items: MessageDto[], nextCursor? }` |
 | POST | `/matches/:id/messages` | ✔ | `{ content }` | 201 `MessageDto` |
@@ -652,6 +659,12 @@ features/<x>/
 - **Upload**: image_picker → `POST /files/presigned-upload` → `PUT` binário → registra key.
 - **Chat**: conecta no namespace `/chat` com o access token, `match:join`, envia por
   socket (fallback REST se desconectado), recebe `message:new`.
+- **Curtidas e avisos**: a aba Matches tem segmentos "Matches" | "Curtidas" (likes
+  recebidos, com "Curtir de volta"). Badges: contagem de não lidas por match
+  (`unreadCount`), novos matches/curtidas desde a última visita (lastSeen local).
+  Notificações do SO via `flutter_local_notifications` disparadas pelos eventos do
+  socket (`match:new`, `message:new`) com o app aberto/minimizado; push com o app
+  fechado exige FCM (roadmap §9 — depende de projeto Firebase).
 
 ---
 
