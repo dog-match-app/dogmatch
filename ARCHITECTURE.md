@@ -146,7 +146,9 @@ backend/src/
 - Localização fica no **dono** (`users.latitude/longitude`), atualizada pelo app.
 - Query raw com PostGIS (índice GIST funcional). Filtros do feed para o cão `X` (dono `U`):
   - cães `active`, de outros donos, com dono geolocalizado;
-  - ainda **não swipados** por `X`;
+  - sem **LIKE** de `X`, e sem **PASS** de `X` nos últimos **7 dias** — pass é um
+    bloqueio temporário do feed (o cão reaparece depois do período); like é
+    definitivo no feed;
   - dentro de `radiusKm` (padrão 50) de `U`, ordenados por distância;
   - **compatibilidade de intenção**:
     - `X.intent = BREEDING` → alvo `intent ∈ {BREEDING, BOTH}` **e** sexo oposto **e** não castrado;
@@ -236,9 +238,13 @@ oficiais das marcas.
 
 `POST /swipes` roda em **transação**:
 1. Valida que `swiperDogId` pertence ao usuário e `targetDogId` existe/ativo/não é dele.
-2. Upsert do swipe (`@@unique(swiperDogId, targetDogId)` garante idempotência).
-3. Se `action = LIKE` e existe like reverso → cria `Match` com `dogAId < dogBId` (ordenação
-   canônica evita duplicatas) e emite `match.created` (EventEmitter2).
+2. Upsert do swipe (`@@unique(swiperDogId, targetDogId)`). **Re-swipe atualiza**
+   `action` e `createdAt` — em particular `PASS → LIKE` é permitido (desfazer um
+   pass acidental curtindo depois, ex.: pela busca/detalhe) e refaz a checagem de
+   match; repetir a mesma ação apenas renova `createdAt` (no PASS, isso reinicia a
+   janela de 7 dias do feed).
+3. Se a ação final é `LIKE` e existe like reverso → cria `Match` com `dogAId < dogBId`
+   (ordenação canônica evita duplicatas) e emite `match.created` (EventEmitter2).
 4. Resposta: `{ matched: boolean, match?: MatchDto }`.
 
 `match.created` é consumido por: **ChatGateway** (emite `match:new` aos dois donos) e
@@ -628,6 +634,11 @@ features/<x>/
   localhost visto pelo emulador Android).
 - **Discovery**: usuário escolhe o cão ativo (dropdown) → cubit carrega cards →
   swipe direita = LIKE, esquerda = PASS → `matched: true` abre dialog "Deu match! 🐾".
+  Raio máximo de sugestões configurável na própria aba (preferência local do app,
+  enviada como `radiusKm`). **Curtir/Passar como par só existe no deck**: o detalhe
+  do cão oferece apenas "Curtir" (sempre habilitado se não houver match), para que
+  um pass acidental possa ser revertido pela busca; a busca indica visualmente o
+  pass (`myAction = PASS`).
 - **Busca (OLX-like)**: aba própria com campo de busca (debounce), bottom sheet de
   filtros (sexo, porte, intenção, idade, raio, ordenação), lista paginada com scroll
   infinito → detalhe do cão (carousel de fotos, infos, dono) com ações Curtir/Passar
