@@ -45,6 +45,11 @@ class DiscoveryCubit extends Cubit<DiscoveryState> {
   /// o deck, para o feed não devolver cães já swipados).
   final Set<Future<void>> _pendingSwipes = {};
 
+  /// Cães deste deck já consumidos pelo swipe físico. O CardSwiper avança um
+  /// índice interno e `state.cards` não muda a cada swipe; ao recriar o deck
+  /// em [removeCard], este set impede cards já swipados de reaparecer.
+  final Set<String> _consumedDogIds = {};
+
   /// Descarta respostas de decks obsoletos (troca de cão durante o fetch).
   int _feedRequestId = 0;
 
@@ -84,11 +89,32 @@ class DiscoveryCubit extends Cubit<DiscoveryState> {
   Future<void> onSwiped(DiscoveryCardModel card, SwipeAction action) async {
     final activeDog = state.activeDog;
     if (activeDog == null) return;
+    _consumedDogIds.add(card.dog.id);
     late final Future<void> pending;
     pending = _registerSwipe(activeDog.id, card, action)
         .whenComplete(() => _pendingSwipes.remove(pending));
     _pendingSwipes.add(pending);
     await pending;
+  }
+
+  /// Remove do deck o cão [dogId] após like/pass feito DENTRO do detalhe
+  /// (o swipe físico não passa por aqui). Recria o deck só com os cards
+  /// restantes; sem restantes, segue o fluxo de fim de deck já existente
+  /// ([onDeckFinished]: aguarda swipes pendentes e recarrega o feed).
+  Future<void> removeCard(String dogId) async {
+    if (isClosed || state.status != DiscoveryStatus.loaded) return;
+    if (!state.cards.any((card) => card.dog.id == dogId)) return;
+    final remaining = [
+      for (final card in state.cards)
+        if (card.dog.id != dogId && !_consumedDogIds.contains(card.dog.id))
+          card,
+    ];
+    if (remaining.isEmpty) {
+      await onDeckFinished();
+      return;
+    }
+    _consumedDogIds.clear();
+    emit(state.copyWith(cards: remaining, deckKey: state.deckKey + 1));
   }
 
   void clearPendingMatch() => emit(state.copyWith());
@@ -127,6 +153,7 @@ class DiscoveryCubit extends Cubit<DiscoveryState> {
     try {
       final cards = await _discoveryRepository.getFeed(dogId: activeDog.id);
       if (isClosed || requestId != _feedRequestId) return;
+      _consumedDogIds.clear();
       emit(
         state.copyWith(
           status: DiscoveryStatus.loaded,

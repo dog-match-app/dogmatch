@@ -1,3 +1,4 @@
+import 'package:dogmatch/features/discovery/data/models/discovery_card_model.dart';
 import 'package:dogmatch/features/dogs/data/models/dog_model.dart';
 import 'package:dogmatch/features/dogs/data/models/dog_owner_model.dart';
 import 'package:equatable/equatable.dart';
@@ -19,6 +20,24 @@ class SearchCardModel extends Equatable {
 
   factory SearchCardModel.fromJson(Map<String, dynamic> json) =>
       _$SearchCardModelFromJson(json);
+
+  /// Adapta um card do deck do discovery para abrir o detalhe
+  /// (`/search/dogs/:id`). O feed só traz cães sem interação do cão ativo,
+  /// então o card nasce sem perspectiva: [myAction] nulo, [matched] falso
+  /// e [isMine] falso.
+  factory SearchCardModel.fromDiscoveryCard(DiscoveryCardModel card) {
+    return SearchCardModel(
+      dog: card.dog,
+      distanceKm: card.distanceKm,
+      owner: DogOwnerModel(
+        id: card.owner.id,
+        name: card.owner.name,
+        city: card.owner.city,
+        avatarUrl: card.owner.avatarUrl,
+      ),
+      matched: false,
+    );
+  }
 
   /// Valor de [myAction] quando o cão ativo já curtiu este cão.
   static const String likeAction = 'LIKE';

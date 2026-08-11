@@ -112,6 +112,10 @@ SDK em `~/development/flutter` (stable), já no PATH. Celular físico: ver `READ
   especiais obrigatórios: sem cães (CTA criar), `LOCATION_REQUIRED` (CTA perfil),
   deck vazio, erro+retry. Ao esgotar o deck, aguardar swipes pendentes antes de
   recarregar (evita repetir cards).
+- Botão "Ver detalhes" no card do deck abre `/search/dogs/:id` (extra:
+  `SearchCardModel.fromDiscoveryCard`); like/pass feito no detalhe volta no pop
+  e `DiscoveryCubit.removeCard(dogId)` tira o cão do deck — o dialog de match
+  já apareceu no detalhe, não duplique no deck.
 
 ### search
 - `SearchCubit`: debounce de 400ms no texto (Timer cancelável), paginação offset
@@ -123,13 +127,20 @@ SDK em `~/development/flutter` (stable), já no PATH. Celular físico: ver `READ
   `excludeSwiped` NUNCA é enviado — mostrar tudo é o propósito da busca.
 - `DogDetailPage` recebe `SearchCardModel` via `extra` com fallback `GET /dogs/:id`
   (`DogDetailCubit`); ações de swipe reutilizam `DiscoveryRepository.swipe` e o
-  dialog de match do discovery — não duplique essa lógica.
+  dialog de match do discovery — não duplique essa lógica. Ao sair, o pop devolve
+  o `myAction` final do card (o deck do discovery usa isso para sincronizar).
+- **Cadeia detalhe↔dono**: navegação interna da cadeia (detalhe→dono via card do
+  dono e dono→detalhe via cards de cães) usa `pushReplacement`; a ENTRADA na
+  cadeia (busca/deck/meus cães → detalhe) usa `push`. A pilha nunca cresce dentro
+  da cadeia e um único voltar retorna à tela de origem. `/chat` e `/photo-viewer`
+  não fazem parte da cadeia — continuam `push` por cima.
 
 ### owners
 - Perfil público do dono (`/owners/:id` ← card do dono no detalhe). `OwnersRepository`
   → `GET /users/:id/profile`; a resposta NUNCA tem email/telefone/coordenadas — não
   adicione esses campos ao model. Cards de cães navegam para `/search/dogs/:id`
-  SEM extra (o detalhe busca via fallback).
+  SEM extra (o detalhe busca via fallback) e com `pushReplacement` — navegação
+  interna da cadeia detalhe↔dono (ver seção search); entrada na cadeia usa `push`.
 
 ### matches
 - `MatchesCubit` refaz fetch quando o `ActiveDogCubit` troca (stream) e no

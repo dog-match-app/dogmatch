@@ -4,11 +4,19 @@ import 'package:dogmatch/features/dogs/presentation/widgets/dog_tag_chips.dart';
 import 'package:flutter/material.dart';
 
 /// Card do deck de swipe: foto (troca por toque nas laterais), gradiente
-/// inferior, nome, raça, distância e chips de idade/intenção/porte.
+/// inferior, nome, raça, distância, chips de idade/intenção/porte e o botão
+/// "Ver detalhes" (detalhe completo antes de decidir).
 class DiscoveryDogCard extends StatefulWidget {
-  const DiscoveryDogCard({super.key, required this.card});
+  const DiscoveryDogCard({
+    super.key,
+    required this.card,
+    required this.onOpenDetails,
+  });
 
   final DiscoveryCardModel card;
+
+  /// Abre o detalhe completo do cão (`/search/dogs/:id`).
+  final VoidCallback onOpenDetails;
 
   @override
   State<DiscoveryDogCard> createState() => _DiscoveryDogCardState();
@@ -111,12 +119,32 @@ class _DiscoveryDogCardState extends State<DiscoveryDogCard> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        dog.name,
-                        style: theme.textTheme.headlineSmall?.copyWith(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                        ),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              dog.name,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: theme.textTheme.headlineSmall?.copyWith(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          // Mesmo visual dos chips overlay (branco
+                          // translúcido sobre a foto).
+                          IconButton(
+                            onPressed: widget.onOpenDetails,
+                            tooltip: 'Ver detalhes',
+                            style: IconButton.styleFrom(
+                              backgroundColor: Colors.white24,
+                              foregroundColor: Colors.white,
+                            ),
+                            icon: const Icon(Icons.info_outline),
+                          ),
+                        ],
                       ),
                       const SizedBox(height: 4),
                       Text(

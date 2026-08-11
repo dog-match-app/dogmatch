@@ -4,11 +4,13 @@ import 'package:dogmatch/app/di/injection.dart';
 import 'package:dogmatch/core/services/location_service.dart';
 import 'package:dogmatch/core/widgets/empty_state.dart';
 import 'package:dogmatch/core/widgets/loading_indicator.dart';
+import 'package:dogmatch/features/discovery/data/models/discovery_card_model.dart';
 import 'package:dogmatch/features/discovery/domain/entities/swipe_action.dart';
 import 'package:dogmatch/features/discovery/presentation/cubit/discovery_cubit.dart';
 import 'package:dogmatch/features/discovery/presentation/widgets/discovery_dog_card.dart';
 import 'package:dogmatch/features/discovery/presentation/widgets/match_dialog.dart';
 import 'package:dogmatch/features/dogs/presentation/widgets/active_dog_selector.dart';
+import 'package:dogmatch/features/search/data/models/search_card_model.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_card_swiper/flutter_card_swiper.dart';
@@ -40,6 +42,22 @@ class _DiscoveryViewState extends State<_DiscoveryView> {
   void dispose() {
     _swiperController.dispose();
     super.dispose();
+  }
+
+  /// Abre o detalhe completo do card (ENTRADA na cadeia detalhe↔dono, por
+  /// isso `push`) e sincroniza o deck na volta: o pop do detalhe devolve o
+  /// `myAction` final — se o usuário curtiu/passou lá dentro, o card não
+  /// pode continuar no deck. O dialog de match já foi mostrado no detalhe.
+  Future<void> _openDetails(
+    BuildContext context,
+    DiscoveryCardModel card,
+  ) async {
+    final cubit = context.read<DiscoveryCubit>();
+    final action = await context.push<String>(
+      '/search/dogs/${card.dog.id}',
+      extra: SearchCardModel.fromDiscoveryCard(card),
+    );
+    if (action != null) await cubit.removeCard(card.dog.id);
   }
 
   @override
@@ -162,7 +180,11 @@ class _DiscoveryViewState extends State<_DiscoveryView> {
                         onEnd: () =>
                             context.read<DiscoveryCubit>().onDeckFinished(),
                         cardBuilder: (context, index, _, _) =>
-                            DiscoveryDogCard(card: state.cards[index]),
+                            DiscoveryDogCard(
+                          card: state.cards[index],
+                          onOpenDetails: () =>
+                              _openDetails(context, state.cards[index]),
+                        ),
                       ),
                     ),
                     Padding(
