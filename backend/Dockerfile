@@ -29,5 +29,9 @@ COPY --from=build /app/dist ./dist
 COPY docker-entrypoint.sh ./
 RUN chmod +x docker-entrypoint.sh
 EXPOSE 3000
+# wget (busybox) em vez de curl: a imagem alpine não traz curl e o healthcheck
+# padrão do Coolify o usa, marcando o container unhealthy com a API saudável.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
+  CMD wget -qO- http://localhost:3000/health >/dev/null 2>&1 || exit 1
 # migrate deploy no boot (exige a CLI do prisma em dependencies) + seed opcional
 CMD ["./docker-entrypoint.sh"]
