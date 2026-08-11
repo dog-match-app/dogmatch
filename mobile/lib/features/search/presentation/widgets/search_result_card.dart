@@ -3,7 +3,9 @@ import 'package:dogmatch/features/dogs/presentation/widgets/dog_tag_chips.dart';
 import 'package:dogmatch/features/search/data/models/search_card_model.dart';
 import 'package:flutter/material.dart';
 
-/// Badge de interação do card: "Match 🐾" ou "Curtido ❤".
+/// Badge de interação do card, por prioridade: "Seu cão 🦴" > "Match 🐾" >
+/// "Curtido ❤" > "Passou 👋" (pass em cor neutra — é um estado reversível,
+/// curtir pela busca/detalhe desfaz).
 class SearchCardBadge extends StatelessWidget {
   const SearchCardBadge({super.key, required this.card});
 
@@ -27,6 +29,10 @@ class SearchCardBadge extends StatelessWidget {
       label = 'Curtido ❤';
       background = scheme.tertiaryContainer;
       foreground = scheme.onTertiaryContainer;
+    } else if (card.isPassed) {
+      label = 'Passou 👋';
+      background = scheme.surfaceContainerHighest;
+      foreground = scheme.onSurfaceVariant;
     } else {
       return const SizedBox.shrink();
     }
@@ -102,7 +108,10 @@ class SearchResultCard extends StatelessWidget {
                             overflow: TextOverflow.ellipsis,
                           ),
                         ),
-                        if (card.isMine || card.isMatched || card.isLiked) ...[
+                        if (card.isMine ||
+                            card.isMatched ||
+                            card.isLiked ||
+                            card.isPassed) ...[
                           const SizedBox(width: 8),
                           SearchCardBadge(card: card),
                         ],

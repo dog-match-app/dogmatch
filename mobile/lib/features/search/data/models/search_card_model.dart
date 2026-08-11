@@ -42,6 +42,10 @@ class SearchCardModel extends Equatable {
   /// Valor de [myAction] quando o cão ativo já curtiu este cão.
   static const String likeAction = 'LIKE';
 
+  /// Valor de [myAction] quando o cão ativo passou este cão (bloqueio
+  /// temporário do feed; re-swipe PASS→LIKE é permitido — §3.6).
+  static const String passAction = 'PASS';
+
   final DogModel dog;
 
   /// `null` quando uma das partes não tem localização.
@@ -61,6 +65,8 @@ class SearchCardModel extends Equatable {
   bool get isMatched => matched ?? false;
 
   bool get isLiked => myAction == likeAction;
+
+  bool get isPassed => myAction == passAction;
 
   /// O cão ativo já interagiu (like ou pass) com este cão.
   bool get hasMyAction => myAction != null;

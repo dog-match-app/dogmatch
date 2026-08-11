@@ -177,7 +177,7 @@ class _ProfileTab extends StatelessWidget {
                             ?.copyWith(fontWeight: FontWeight.bold),
                       ),
                     ),
-                    if (card.isMatched || card.isLiked) ...[
+                    if (card.isMatched || card.isLiked || card.isPassed) ...[
                       const SizedBox(width: 8),
                       SearchCardBadge(card: card),
                     ],
@@ -278,8 +278,8 @@ class _PostsTab extends StatelessWidget {
   }
 }
 
-/// Ações do rodapé conforme o estado: abrir conversa (match), curtir/passar
-/// (com cão ativo) ou CTA de cadastro (sem cão). O seletor fica junto das
+/// Ações do rodapé conforme o estado: abrir conversa (match), curtir (com
+/// cão ativo) ou CTA de cadastro (sem cão). O seletor fica junto das
 /// ações — é com esse cão que o like é registrado.
 class _BottomActions extends StatelessWidget {
   const _BottomActions({required this.state, required this.dogId});
@@ -315,6 +315,11 @@ class _BottomActions extends StatelessWidget {
   }
 }
 
+/// Ação única do detalhe: **Curtir** (passar é gesto do deck, não existe
+/// aqui — §6.3). Com `myAction = PASS` o botão continua habilitado: curtir
+/// por cima é exatamente o caminho de desfazer um pass acidental (o backend
+/// permite o re-swipe PASS→LIKE). Já curtido ⇒ estado "Curtido ❤"
+/// desabilitado; com match ⇒ "Abrir conversa 💬".
 class _ActionButtons extends StatelessWidget {
   const _ActionButtons({required this.state});
 
@@ -331,37 +336,14 @@ class _ActionButtons extends StatelessWidget {
         onPressed: () => context.read<DogDetailCubit>().openConversation(),
       );
     }
-    final canAct = !card.hasMyAction && !state.actionInProgress;
-    return Row(
-      children: [
-        Expanded(
-          child: SizedBox(
-            height: 52,
-            child: OutlinedButton.icon(
-              onPressed: canAct
-                  ? () =>
-                      context.read<DogDetailCubit>().swipe(SwipeAction.pass)
-                  : null,
-              icon: const Icon(Icons.close),
-              label: const Text('Passar'),
-            ),
-          ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: SizedBox(
-            height: 52,
-            child: FilledButton.icon(
-              onPressed: canAct
-                  ? () =>
-                      context.read<DogDetailCubit>().swipe(SwipeAction.like)
-                  : null,
-              icon: const Icon(Icons.favorite),
-              label: const Text('Curtir'),
-            ),
-          ),
-        ),
-      ],
+    if (card.isLiked) {
+      return const PrimaryButton(label: 'Curtido ❤', icon: Icons.favorite);
+    }
+    return PrimaryButton(
+      label: 'Curtir',
+      icon: Icons.favorite,
+      loading: state.actionInProgress,
+      onPressed: () => context.read<DogDetailCubit>().swipe(SwipeAction.like),
     );
   }
 }

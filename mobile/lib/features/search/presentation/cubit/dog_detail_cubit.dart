@@ -17,8 +17,9 @@ import 'package:injectable/injectable.dart';
 part 'dog_detail_state.dart';
 
 /// Detalhe de um cão vindo da busca: exibe o card recebido via extra ou, no
-/// fallback (deep link), busca `GET /dogs/:id` (que inclui `owner`). Ações de
-/// like/pass usam o cão ativo; `matched` abre a conversa do match.
+/// fallback (deep link), busca `GET /dogs/:id` (que inclui `owner`). A ação
+/// de like usa o cão ativo (passar é gesto do deck, não existe no detalhe);
+/// `matched` abre a conversa do match.
 @injectable
 class DogDetailCubit extends Cubit<DogDetailState> {
   DogDetailCubit(
@@ -79,14 +80,19 @@ class DogDetailCubit extends Cubit<DogDetailState> {
     }
   }
 
-  /// Registra like/pass com o cão ativo; em match, agenda o dialog
+  /// Registra o swipe com o cão ativo; em match, agenda o dialog
   /// "Deu match! 🐾" e atualiza o badge local.
+  ///
+  /// `myAction = PASS` NÃO bloqueia: o backend permite o re-swipe
+  /// PASS→LIKE (§3.6) e é assim que um pass acidental do deck é desfeito
+  /// por aqui. Só like já registrado (ou match) trava a ação.
   Future<void> swipe(SwipeAction action) async {
     final card = state.card;
     final activeDog = state.activeDog;
     if (card == null ||
         activeDog == null ||
-        card.hasMyAction ||
+        card.isLiked ||
+        card.isMatched ||
         state.actionInProgress) {
       return;
     }
