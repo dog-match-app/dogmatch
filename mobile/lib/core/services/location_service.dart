@@ -74,8 +74,10 @@ class LocationSyncResult extends Equatable {
 /// nas configurações do sistema só é vista no `resumed`).
 ///
 /// Regras: sync automático no máximo uma vez por sessão autenticada; pedido
-/// de permissão APENAS em gesto do usuário ([ensurePermission]); convite da
-/// aba Matches no máximo uma vez por sessão e nunca bloqueante.
+/// de permissão em gesto do usuário ([ensurePermission]) e, quando ausente,
+/// uma única vez no início da sessão ([promptPermissionAtSessionStart] —
+/// nunca para deniedForever); convite da aba Matches no máximo uma vez por
+/// sessão e nunca bloqueante.
 @lazySingleton
 class LocationService with WidgetsBindingObserver {
   LocationService(this._gateway, this._profileRepository);
@@ -98,6 +100,7 @@ class LocationService with WidgetsBindingObserver {
   bool _sessionActive = false;
   bool _syncedThisSession = false;
   bool _inviteOffered = false;
+  bool _startupPromptHandled = false;
   UserModel? _lastSyncedUser;
   Future<LocationSyncResult>? _inFlightSync;
 
@@ -182,6 +185,25 @@ class LocationService with WidgetsBindingObserver {
       );
     }
     return syncToProfile(force: forceSync);
+  }
+
+  /// Pedido único de permissão no início da sessão autenticada (primeira
+  /// tela com UI, chamado pelo shell): cobre o app reinstalado — uma conta
+  /// com localização já salva no backend nunca cai em `LOCATION_REQUIRED`,
+  /// então sem este pedido a posição ficaria desatualizada até o usuário
+  /// achar o botão do perfil. `deniedForever` não é incomodado aqui (fica
+  /// para os gestos, que abrem o dialog de configurações); negada, a vida
+  /// segue — os gestos continuam pedindo como sempre. Concedida ⇒ sincroniza
+  /// e emite em [onLocationSynced] (as telas recarregam sozinhas).
+  Future<void> promptPermissionAtSessionStart() async {
+    if (!_sessionActive || _startupPromptHandled) return;
+    _startupPromptHandled = true;
+    final permission = await _gateway.checkPermission();
+    if (_isGranted(permission) ||
+        permission == LocationPermission.deniedForever) {
+      return;
+    }
+    await ensurePermission();
   }
 
   /// Convite leve da aba Matches (SnackBar com "Ativar"): no máximo uma vez
@@ -279,6 +301,7 @@ class LocationService with WidgetsBindingObserver {
   void _resetSessionFlags() {
     _syncedThisSession = false;
     _inviteOffered = false;
+    _startupPromptHandled = false;
     _lastSyncedUser = null;
   }
 

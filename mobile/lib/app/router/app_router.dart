@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import 'package:dogmatch/app/di/injection.dart';
+import 'package:dogmatch/core/services/location_service.dart';
 import 'package:dogmatch/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:dogmatch/features/auth/presentation/pages/login_page.dart';
 import 'package:dogmatch/features/auth/presentation/pages/register_page.dart';
@@ -190,13 +192,32 @@ GoRouter buildAppRouter(AuthBloc authBloc) {
 }
 
 /// Shell com a bottom navigation das 4 abas.
-class _HomeShell extends StatelessWidget {
+class _HomeShell extends StatefulWidget {
   const _HomeShell({required this.navigationShell});
 
   final StatefulNavigationShell navigationShell;
 
   @override
+  State<_HomeShell> createState() => _HomeShellState();
+}
+
+class _HomeShellState extends State<_HomeShell> {
+  @override
+  void initState() {
+    super.initState();
+    // Primeiro momento com UI da sessão autenticada: se a permissão de
+    // localização está ausente (app reinstalado, por exemplo), o serviço
+    // pede uma única vez por sessão — sem isso, contas com localização já
+    // salva no backend nunca caem em LOCATION_REQUIRED e ficariam com a
+    // posição desatualizada. O serviço não incomoda em deniedForever.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      unawaited(getIt<LocationService>().promptPermissionAtSessionStart());
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final navigationShell = widget.navigationShell;
     return Scaffold(
       body: navigationShell,
       bottomNavigationBar: NavigationBar(

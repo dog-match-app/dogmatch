@@ -185,6 +185,103 @@ void main() {
       service.endSession();
     });
 
+    group('promptPermissionAtSessionStart', () {
+      test('sem sessão ativa é no-op (nem checa a permissão)', () async {
+        await service.promptPermissionAtSessionStart();
+
+        verifyNever(() => gateway.checkPermission());
+        verifyNever(() => gateway.requestPermission());
+      });
+
+      test(
+          'permissão ausente ⇒ pede UMA vez por sessão e sincroniza ao '
+          'conceder', () async {
+        var permission = LocationPermission.denied;
+        when(() => gateway.checkPermission())
+            .thenAnswer((_) async => permission);
+        when(() => gateway.requestPermission()).thenAnswer((_) async {
+          permission = LocationPermission.whileInUse;
+          return permission;
+        });
+        stubSuccessfulSync();
+
+        final emitted = expectLater(service.onLocationSynced, emits(_user));
+        service.startSession();
+        await service.promptPermissionAtSessionStart();
+        // Segunda tela da mesma sessão: não pode pedir de novo.
+        await service.promptPermissionAtSessionStart();
+        await emitted;
+
+        verify(() => gateway.requestPermission()).called(1);
+        verify(
+          () => profileRepository.updateProfile(
+            latitude: _position.latitude,
+            longitude: _position.longitude,
+          ),
+        ).called(1);
+        service.endSession();
+      });
+
+      test('negada no prompt ⇒ segue a vida sem sincronizar', () async {
+        stubPermission(LocationPermission.denied);
+        when(() => gateway.requestPermission())
+            .thenAnswer((_) async => LocationPermission.denied);
+
+        service.startSession();
+        await service.promptPermissionAtSessionStart();
+
+        verify(() => gateway.requestPermission()).called(1);
+        verifyNever(
+          () => profileRepository.updateProfile(
+            latitude: any(named: 'latitude'),
+            longitude: any(named: 'longitude'),
+          ),
+        );
+        service.endSession();
+      });
+
+      test('deniedForever ⇒ início de sessão não incomoda', () async {
+        stubPermission(LocationPermission.deniedForever);
+
+        service.startSession();
+        await service.promptPermissionAtSessionStart();
+
+        verifyNever(() => gateway.requestPermission());
+        service.endSession();
+      });
+
+      test('permissão já concedida ⇒ não abre prompt do sistema', () async {
+        stubPermission(LocationPermission.whileInUse);
+        stubSuccessfulSync();
+
+        // Aguarda o sync silencioso do startSession terminar (ele é quem
+        // sincroniza — o prompt não deve fazer nada aqui).
+        final synced = expectLater(service.onLocationSynced, emits(_user));
+        service.startSession();
+        await service.promptPermissionAtSessionStart();
+        await synced;
+
+        verifyNever(() => gateway.requestPermission());
+        service.endSession();
+      });
+
+      test('sessão nova (logout → login) volta a pedir uma vez', () async {
+        stubPermission(LocationPermission.denied);
+        when(() => gateway.requestPermission())
+            .thenAnswer((_) async => LocationPermission.denied);
+
+        service.startSession();
+        await service.promptPermissionAtSessionStart();
+        service.endSession();
+
+        service.startSession();
+        await service.promptPermissionAtSessionStart();
+        service.endSession();
+
+        verify(() => gateway.requestPermission()).called(2);
+      });
+    });
+
     test('GPS desligado ⇒ serviceDisabled com mensagem própria', () async {
       stubPermission(LocationPermission.whileInUse);
       when(() => gateway.isLocationServiceEnabled())
