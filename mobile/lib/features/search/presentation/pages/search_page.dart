@@ -1,4 +1,5 @@
 import 'package:dogmatch/app/di/injection.dart';
+import 'package:dogmatch/core/services/location_service.dart';
 import 'package:dogmatch/core/widgets/empty_state.dart';
 import 'package:dogmatch/core/widgets/loading_indicator.dart';
 import 'package:dogmatch/features/dogs/presentation/widgets/active_dog_selector.dart';
@@ -65,7 +66,16 @@ class _SearchViewState extends State<_SearchView> {
       showDragHandle: true,
       builder: (_) => SearchFilterSheet(initial: cubit.state.filters),
     );
-    if (result != null) await cubit.updateFilters(result);
+    if (result == null) return;
+    // Raio e ordenação por distância dependem da localização: pede a
+    // permissão na hora e sincroniza antes de buscar; negada, a busca segue
+    // e o estado de erro/lista cuida do resto.
+    final needsLocation = result.radiusKm != null ||
+        result.orderBy == SearchOrderBy.distance;
+    if (needsLocation && mounted) {
+      await getIt<LocationService>().ensurePermission(context: context);
+    }
+    await cubit.updateFilters(result);
   }
 
   @override

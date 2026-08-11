@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import 'package:dogmatch/app/di/injection.dart';
+import 'package:dogmatch/core/services/location_service.dart';
 import 'package:dogmatch/core/widgets/empty_state.dart';
 import 'package:dogmatch/core/widgets/loading_indicator.dart';
 import 'package:dogmatch/features/discovery/domain/entities/swipe_action.dart';
@@ -89,10 +90,26 @@ class _DiscoveryViewState extends State<_DiscoveryView> {
                 icon: Icons.location_off_outlined,
                 title: 'Precisamos da sua localização',
                 message:
-                    'Defina sua localização no perfil para encontrarmos cães '
+                    'Permita o acesso à localização para encontrarmos cães '
                     'próximos de você.',
-                actionLabel: 'Ir ao perfil',
-                onAction: () => context.go('/profile'),
+                actionLabel: 'Ativar localização',
+                onAction: () async {
+                  final messenger = ScaffoldMessenger.of(context);
+                  final result = await getIt<LocationService>()
+                      .ensurePermission(context: context);
+                  // Concedida + sincronizada ⇒ o cubit recarrega sozinho
+                  // via onLocationSynced; deniedForever já mostrou o dialog.
+                  if (!result.synced &&
+                      result.status !=
+                          LocationSyncStatus.permissionDeniedForever &&
+                      result.errorMessage != null) {
+                    messenger
+                      ..hideCurrentSnackBar()
+                      ..showSnackBar(
+                        SnackBar(content: Text(result.errorMessage!)),
+                      );
+                  }
+                },
               );
             case DiscoveryStatus.error:
               return EmptyState(

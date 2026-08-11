@@ -1,5 +1,8 @@
+import 'dart:async';
+
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:dogmatch/app/di/injection.dart';
+import 'package:dogmatch/core/services/location_service.dart';
 import 'package:dogmatch/core/widgets/empty_state.dart';
 import 'package:dogmatch/core/widgets/loading_indicator.dart';
 import 'package:dogmatch/features/dogs/presentation/widgets/active_dog_selector.dart';
@@ -67,7 +70,13 @@ class _MatchesView extends StatelessWidget {
                 );
               }
               return RefreshIndicator(
-                onRefresh: () => context.read<MatchesCubit>().load(),
+                onRefresh: () {
+                  // Convite não bloqueante: o refresh segue normalmente.
+                  unawaited(
+                    getIt<LocationService>().offerLocationInvite(context),
+                  );
+                  return context.read<MatchesCubit>().load();
+                },
                 child: ListView.separated(
                   physics: const AlwaysScrollableScrollPhysics(),
                   itemCount: state.matches.length,
@@ -137,6 +146,8 @@ class _MatchTile extends StatelessWidget {
       ),
       onTap: () async {
         final cubit = context.read<MatchesCubit>();
+        // Convite não bloqueante: abrir o chat nunca espera a permissão.
+        unawaited(getIt<LocationService>().offerLocationInvite(context));
         await context.push('/chat/${match.id}', extra: match);
         cubit.load();
       },

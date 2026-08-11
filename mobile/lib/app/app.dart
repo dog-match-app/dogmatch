@@ -1,6 +1,7 @@
 import 'package:dogmatch/app/di/injection.dart';
 import 'package:dogmatch/app/router/app_router.dart';
 import 'package:dogmatch/app/theme/app_theme.dart';
+import 'package:dogmatch/core/services/location_service.dart';
 import 'package:dogmatch/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -35,19 +36,29 @@ class _DogMatchAppState extends State<DogMatchApp> {
   Widget build(BuildContext context) {
     return BlocProvider.value(
       value: _authBloc,
-      child: MaterialApp.router(
-        title: 'DogMatch',
-        debugShowCheckedModeBanner: false,
-        theme: AppTheme.light,
-        darkTheme: AppTheme.dark,
-        locale: const Locale('pt', 'BR'),
-        supportedLocales: const [Locale('pt', 'BR'), Locale('en')],
-        localizationsDelegates: const [
-          GlobalMaterialLocalizations.delegate,
-          GlobalWidgetsLocalizations.delegate,
-          GlobalCupertinoLocalizations.delegate,
-        ],
-        routerConfig: _router,
+      child: BlocListener<AuthBloc, AuthState>(
+        listener: (context, state) {
+          final locationService = getIt<LocationService>();
+          if (state is AuthAuthenticated) {
+            locationService.startSession();
+          } else if (state is AuthUnauthenticated) {
+            locationService.endSession();
+          }
+        },
+        child: MaterialApp.router(
+          title: 'DogMatch',
+          debugShowCheckedModeBanner: false,
+          theme: AppTheme.light,
+          darkTheme: AppTheme.dark,
+          locale: const Locale('pt', 'BR'),
+          supportedLocales: const [Locale('pt', 'BR'), Locale('en')],
+          localizationsDelegates: const [
+            GlobalMaterialLocalizations.delegate,
+            GlobalWidgetsLocalizations.delegate,
+            GlobalCupertinoLocalizations.delegate,
+          ],
+          routerConfig: _router,
+        ),
       ),
     );
   }

@@ -14,6 +14,7 @@ import 'package:dogmatch/app/di/register_module.dart' as _i496;
 import 'package:dogmatch/core/network/auth_session_manager.dart' as _i838;
 import 'package:dogmatch/core/network/file_uploader.dart' as _i416;
 import 'package:dogmatch/core/network/socket_client.dart' as _i989;
+import 'package:dogmatch/core/services/location_service.dart' as _i234;
 import 'package:dogmatch/core/storage/token_storage.dart' as _i478;
 import 'package:dogmatch/features/auth/data/repositories/auth_repository_impl.dart'
     as _i750;
@@ -99,6 +100,9 @@ extension GetItInjectableX on _i174.GetIt {
       () => _i838.AuthSessionManager(),
       dispose: (i) => i.dispose(),
     );
+    gh.lazySingleton<_i234.LocationGateway>(
+      () => _i234.GeolocatorLocationGateway(),
+    );
     gh.lazySingleton<_i478.TokenStorage>(
       () => _i478.TokenStorage(gh<_i558.FlutterSecureStorage>()),
     );
@@ -176,21 +180,33 @@ extension GetItInjectableX on _i174.GetIt {
         gh<_i416.FileUploader>(),
       ),
     );
+    gh.lazySingleton<_i234.LocationService>(
+      () => _i234.LocationService(
+        gh<_i234.LocationGateway>(),
+        gh<_i854.ProfileRepository>(),
+      ),
+      dispose: (i) => i.dispose(),
+    );
     gh.lazySingleton<_i230.ActiveDogCubit>(
       () => _i230.ActiveDogCubit(gh<_i1052.DogRepository>()),
     );
-    gh.factory<_i417.ProfileCubit>(
-      () => _i417.ProfileCubit(gh<_i854.ProfileRepository>()),
-    );
-    gh.factory<_i691.MyDogsCubit>(
-      () => _i691.MyDogsCubit(
-        gh<_i1052.DogRepository>(),
+    gh.factory<_i832.SearchCubit>(
+      () => _i832.SearchCubit(
+        gh<_i984.SearchRepository>(),
         gh<_i230.ActiveDogCubit>(),
+        gh<_i234.LocationService>(),
       ),
     );
     gh.factory<_i290.DiscoveryCubit>(
       () => _i290.DiscoveryCubit(
         gh<_i557.DiscoveryRepository>(),
+        gh<_i230.ActiveDogCubit>(),
+        gh<_i234.LocationService>(),
+      ),
+    );
+    gh.factory<_i691.MyDogsCubit>(
+      () => _i691.MyDogsCubit(
+        gh<_i1052.DogRepository>(),
         gh<_i230.ActiveDogCubit>(),
       ),
     );
@@ -202,15 +218,15 @@ extension GetItInjectableX on _i174.GetIt {
         gh<_i230.ActiveDogCubit>(),
       ),
     );
+    gh.factory<_i417.ProfileCubit>(
+      () => _i417.ProfileCubit(
+        gh<_i854.ProfileRepository>(),
+        gh<_i234.LocationService>(),
+      ),
+    );
     gh.factory<_i623.MatchesCubit>(
       () => _i623.MatchesCubit(
         gh<_i19.MatchRepository>(),
-        gh<_i230.ActiveDogCubit>(),
-      ),
-    );
-    gh.factory<_i832.SearchCubit>(
-      () => _i832.SearchCubit(
-        gh<_i984.SearchRepository>(),
         gh<_i230.ActiveDogCubit>(),
       ),
     );

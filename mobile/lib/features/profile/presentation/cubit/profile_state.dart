@@ -9,6 +9,7 @@ class ProfileState extends Equatable {
     this.saving = false,
     this.uploadingAvatar = false,
     this.updatingLocation = false,
+    this.locationSettingsPrompt = false,
     this.errorMessage,
     this.successMessage,
   });
@@ -18,6 +19,10 @@ class ProfileState extends Equatable {
   final bool saving;
   final bool uploadingAvatar;
   final bool updatingLocation;
+
+  /// Transitório: permissão bloqueada (deniedForever) — a página abre o
+  /// dialog que leva às configurações do aplicativo.
+  final bool locationSettingsPrompt;
 
   /// Mensagens transitórias consumidas por BlocListener (SnackBar).
   final String? errorMessage;
@@ -29,6 +34,7 @@ class ProfileState extends Equatable {
     bool? saving,
     bool? uploadingAvatar,
     bool? updatingLocation,
+    bool locationSettingsPrompt = false,
     String? errorMessage,
     String? successMessage,
   }) {
@@ -38,6 +44,7 @@ class ProfileState extends Equatable {
       saving: saving ?? this.saving,
       uploadingAvatar: uploadingAvatar ?? this.uploadingAvatar,
       updatingLocation: updatingLocation ?? this.updatingLocation,
+      locationSettingsPrompt: locationSettingsPrompt,
       errorMessage: errorMessage,
       successMessage: successMessage,
     );
@@ -50,6 +57,7 @@ class ProfileState extends Equatable {
         saving,
         uploadingAvatar,
         updatingLocation,
+        locationSettingsPrompt,
         errorMessage,
         successMessage,
       ];

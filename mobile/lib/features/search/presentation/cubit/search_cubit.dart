@@ -1,6 +1,8 @@
 import 'dart:async';
 
 import 'package:dogmatch/core/error/api_exception.dart';
+import 'package:dogmatch/core/services/location_service.dart';
+import 'package:dogmatch/features/auth/data/models/user_model.dart';
 import 'package:dogmatch/features/discovery/presentation/cubit/active_dog_cubit.dart';
 import 'package:dogmatch/features/search/data/models/search_card_model.dart';
 import 'package:dogmatch/features/search/domain/entities/search_filters.dart';
@@ -21,10 +23,15 @@ class SearchCubit extends Cubit<SearchState> {
   SearchCubit(
     this._searchRepository,
     this._activeDogCubit,
+    this._locationService,
   ) : super(const SearchState()) {
     _activeDogSubscription = _activeDogCubit.stream.listen((activeState) {
       final dog = activeState.active;
       if (dog != null && dog.id != _dogId) search();
+    });
+    _locationSyncSubscription =
+        _locationService.onLocationSynced.listen((_) {
+      if (state.locationRequired) search();
     });
   }
 
@@ -33,8 +40,10 @@ class SearchCubit extends Cubit<SearchState> {
 
   final SearchRepository _searchRepository;
   final ActiveDogCubit _activeDogCubit;
+  final LocationService _locationService;
 
   late final StreamSubscription<ActiveDogState> _activeDogSubscription;
+  late final StreamSubscription<UserModel> _locationSyncSubscription;
 
   Timer? _debounce;
 
@@ -74,7 +83,11 @@ class SearchCubit extends Cubit<SearchState> {
     } on ApiException catch (exception) {
       if (isClosed || requestId != _requestId) return;
       emit(
-        state.copyWith(status: SearchStatus.error, message: exception.message),
+        state.copyWith(
+          status: SearchStatus.error,
+          message: exception.message,
+          locationRequired: exception.isLocationRequired,
+        ),
       );
     }
   }
@@ -111,7 +124,11 @@ class SearchCubit extends Cubit<SearchState> {
       if (isClosed || requestId != _requestId) return;
       // Mantém os itens acumulados; a UI mostra a mensagem sem perder a lista.
       emit(
-        state.copyWith(status: SearchStatus.error, message: exception.message),
+        state.copyWith(
+          status: SearchStatus.error,
+          message: exception.message,
+          locationRequired: exception.isLocationRequired,
+        ),
       );
     }
   }
@@ -138,6 +155,7 @@ class SearchCubit extends Cubit<SearchState> {
   Future<void> close() async {
     _debounce?.cancel();
     await _activeDogSubscription.cancel();
+    await _locationSyncSubscription.cancel();
     return super.close();
   }
 }

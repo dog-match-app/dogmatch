@@ -1,6 +1,9 @@
+import 'dart:async';
+
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:dogmatch/app/di/injection.dart';
 import 'package:dogmatch/core/network/file_uploader.dart';
+import 'package:dogmatch/core/services/location_service.dart';
 import 'package:dogmatch/core/widgets/app_text_field.dart';
 import 'package:dogmatch/core/widgets/empty_state.dart';
 import 'package:dogmatch/core/widgets/loading_indicator.dart';
@@ -116,6 +119,11 @@ class _ProfileViewState extends State<_ProfileView> {
           if (state.errorMessage != null) _showSnackBar(state.errorMessage!);
           if (state.successMessage != null) {
             _showSnackBar(state.successMessage!);
+          }
+          if (state.locationSettingsPrompt) {
+            unawaited(
+              getIt<LocationService>().showLocationSettingsDialog(context),
+            );
           }
           if (state.status == ProfileStatus.loaded && state.user != null) {
             final user = state.user!;

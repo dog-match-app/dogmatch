@@ -1,5 +1,7 @@
 import 'package:bloc_test/bloc_test.dart';
 import 'package:dogmatch/core/error/api_exception.dart';
+import 'package:dogmatch/core/services/location_service.dart';
+import 'package:dogmatch/features/auth/data/models/user_model.dart';
 import 'package:dogmatch/features/discovery/presentation/cubit/active_dog_cubit.dart';
 import 'package:dogmatch/features/dogs/data/models/dog_model.dart';
 import 'package:dogmatch/features/dogs/data/models/dog_owner_model.dart';
@@ -16,6 +18,8 @@ import 'package:mocktail/mocktail.dart';
 class MockSearchRepository extends Mock implements SearchRepository {}
 
 class MockDogRepository extends Mock implements DogRepository {}
+
+class MockLocationService extends Mock implements LocationService {}
 
 DogModel _makeDog(String id, {String name = 'Rex'}) => DogModel(
       id: id,
@@ -44,6 +48,7 @@ void main() {
   late MockSearchRepository searchRepository;
   late MockDogRepository dogRepository;
   late ActiveDogCubit activeDogCubit;
+  late MockLocationService locationService;
 
   setUpAll(() {
     registerFallbackValue(const SearchFilters());
@@ -52,6 +57,9 @@ void main() {
   setUp(() async {
     searchRepository = MockSearchRepository();
     dogRepository = MockDogRepository();
+    locationService = MockLocationService();
+    when(() => locationService.onLocationSynced)
+        .thenAnswer((_) => const Stream<UserModel>.empty());
     when(() => dogRepository.getMyDogs())
         .thenAnswer((_) async => [myDog, myOtherDog]);
     activeDogCubit = ActiveDogCubit(dogRepository);
@@ -60,7 +68,8 @@ void main() {
 
   tearDown(() => activeDogCubit.close());
 
-  SearchCubit buildCubit() => SearchCubit(searchRepository, activeDogCubit);
+  SearchCubit buildCubit() =>
+      SearchCubit(searchRepository, activeDogCubit, locationService);
 
   void stubSearch(SearchResultModel result) {
     when(

@@ -1,6 +1,8 @@
 import 'dart:async';
 
 import 'package:dogmatch/core/error/api_exception.dart';
+import 'package:dogmatch/core/services/location_service.dart';
+import 'package:dogmatch/features/auth/data/models/user_model.dart';
 import 'package:dogmatch/features/discovery/data/models/discovery_card_model.dart';
 import 'package:dogmatch/features/discovery/domain/entities/swipe_action.dart';
 import 'package:dogmatch/features/discovery/domain/repositories/discovery_repository.dart';
@@ -18,6 +20,7 @@ class DiscoveryCubit extends Cubit<DiscoveryState> {
   DiscoveryCubit(
     this._discoveryRepository,
     this._activeDogCubit,
+    this._locationService,
   ) : super(const DiscoveryState()) {
     _activeDogSubscription = _activeDogCubit.stream.listen((activeState) {
       final dog = activeState.active;
@@ -25,12 +28,18 @@ class DiscoveryCubit extends Cubit<DiscoveryState> {
       emit(state.copyWith(activeDog: dog));
       _loadFeed();
     });
+    _locationSyncSubscription =
+        _locationService.onLocationSynced.listen((_) {
+      if (state.status == DiscoveryStatus.locationRequired) _loadFeed();
+    });
   }
 
   final DiscoveryRepository _discoveryRepository;
   final ActiveDogCubit _activeDogCubit;
+  final LocationService _locationService;
 
   late final StreamSubscription<ActiveDogState> _activeDogSubscription;
+  late final StreamSubscription<UserModel> _locationSyncSubscription;
 
   /// Swipes ainda não confirmados pela API (aguardados antes de recarregar
   /// o deck, para o feed não devolver cães já swipados).
@@ -101,7 +110,12 @@ class DiscoveryCubit extends Cubit<DiscoveryState> {
         emit(state.copyWith(pendingMatch: result.match));
       }
     } on ApiException catch (exception) {
-      if (!isClosed) emit(state.copyWith(swipeError: exception.message));
+      if (isClosed) return;
+      if (exception.isLocationRequired) {
+        emit(state.copyWith(status: DiscoveryStatus.locationRequired));
+      } else {
+        emit(state.copyWith(swipeError: exception.message));
+      }
     }
   }
 
@@ -138,6 +152,7 @@ class DiscoveryCubit extends Cubit<DiscoveryState> {
   @override
   Future<void> close() async {
     await _activeDogSubscription.cancel();
+    await _locationSyncSubscription.cancel();
     return super.close();
   }
 }

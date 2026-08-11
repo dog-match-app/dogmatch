@@ -1,20 +1,30 @@
+import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:dogmatch/core/error/api_exception.dart';
+import 'package:dogmatch/core/services/location_service.dart';
 import 'package:dogmatch/features/auth/data/models/user_model.dart';
 import 'package:dogmatch/features/profile/domain/repositories/profile_repository.dart';
 import 'package:equatable/equatable.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:geolocator/geolocator.dart';
 import 'package:injectable/injectable.dart';
 
 part 'profile_state.dart';
 
 @injectable
 class ProfileCubit extends Cubit<ProfileState> {
-  ProfileCubit(this._profileRepository) : super(const ProfileState());
+  ProfileCubit(this._profileRepository, this._locationService)
+      : super(const ProfileState()) {
+    _locationSyncSubscription =
+        _locationService.onLocationSynced.listen((user) {
+      emit(state.copyWith(status: ProfileStatus.loaded, user: user));
+    });
+  }
 
   final ProfileRepository _profileRepository;
+  final LocationService _locationService;
+
+  late final StreamSubscription<UserModel> _locationSyncSubscription;
 
   Future<void> load() async {
     emit(state.copyWith(status: ProfileStatus.loading));
@@ -81,66 +91,39 @@ class ProfileCubit extends Cubit<ProfileState> {
     }
   }
 
-  /// Lê a posição atual (geolocator) e envia `PATCH /users/me` só com
-  /// latitude/longitude.
+  /// Refresh manual do botão "Usar minha localização": todo o fluxo (pedido
+  /// de permissão + `PATCH /users/me`) vive no [LocationService].
   Future<void> useMyLocation() async {
     emit(state.copyWith(updatingLocation: true));
-    try {
-      if (!await Geolocator.isLocationServiceEnabled()) {
-        emit(
-          state.copyWith(
-            updatingLocation: false,
-            errorMessage:
-                'Ative o serviço de localização (GPS) e tente novamente.',
-          ),
-        );
-        return;
-      }
-      var permission = await Geolocator.checkPermission();
-      if (permission == LocationPermission.denied) {
-        permission = await Geolocator.requestPermission();
-      }
-      if (permission == LocationPermission.denied ||
-          permission == LocationPermission.deniedForever) {
-        emit(
-          state.copyWith(
-            updatingLocation: false,
-            errorMessage:
-                'Permissão de localização negada. Habilite nas configurações.',
-          ),
-        );
-        return;
-      }
-      final position = await Geolocator.getCurrentPosition(
-        locationSettings:
-            const LocationSettings(accuracy: LocationAccuracy.medium),
-      );
-      final user = await _profileRepository.updateProfile(
-        latitude: position.latitude,
-        longitude: position.longitude,
-      );
+    final result = await _locationService.ensurePermission(forceSync: true);
+    if (result.synced) {
       emit(
         state.copyWith(
           status: ProfileStatus.loaded,
-          user: user,
+          user: result.user,
           updatingLocation: false,
           successMessage: 'Localização atualizada!',
         ),
       );
-    } on ApiException catch (exception) {
+    } else if (result.status == LocationSyncStatus.permissionDeniedForever) {
+      // O cubit não tem BuildContext: a página mostra o dialog que leva às
+      // configurações ao ver esta flag transitória.
       emit(
-        state.copyWith(
-          updatingLocation: false,
-          errorMessage: exception.message,
-        ),
+        state.copyWith(updatingLocation: false, locationSettingsPrompt: true),
       );
-    } on Exception {
+    } else {
       emit(
         state.copyWith(
           updatingLocation: false,
-          errorMessage: 'Não foi possível obter sua localização.',
+          errorMessage: result.errorMessage,
         ),
       );
     }
+  }
+
+  @override
+  Future<void> close() async {
+    await _locationSyncSubscription.cancel();
+    return super.close();
   }
 }
