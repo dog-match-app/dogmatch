@@ -7,4 +7,8 @@ abstract class MatchRepository {
 
   /// Busca um match pelo id (fallback quando a rota de chat abre sem extra).
   Future<MatchModel?> findMatch(String matchId);
+
+  /// `POST /matches/:id/read` — marca como lidas as mensagens do outro
+  /// participante (zera o `unreadCount` deste match no servidor).
+  Future<void> markRead(String matchId);
 }

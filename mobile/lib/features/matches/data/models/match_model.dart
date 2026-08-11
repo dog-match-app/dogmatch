@@ -38,6 +38,7 @@ class MatchModel extends Equatable {
     required this.otherDog,
     required this.otherOwner,
     this.lastMessage,
+    this.unreadCount = 0,
   });
 
   factory MatchModel.fromJson(Map<String, dynamic> json) =>
@@ -50,9 +51,28 @@ class MatchModel extends Equatable {
   final MatchOwnerModel otherOwner;
   final MessageModel? lastMessage;
 
+  /// Mensagens do outro participante ainda sem `readAt` (`MatchDto.
+  /// unreadCount`); default 0 para payloads antigos sem o campo.
+  @JsonKey(defaultValue: 0)
+  final int unreadCount;
+
   Map<String, dynamic> toJson() => _$MatchModelToJson(this);
+
+  /// Cópia com o estado local de leitura atualizado (badge de não lidas e
+  /// última mensagem chegando pelo socket) — os demais campos são imutáveis.
+  MatchModel copyWith({int? unreadCount, MessageModel? lastMessage}) {
+    return MatchModel(
+      id: id,
+      createdAt: createdAt,
+      myDog: myDog,
+      otherDog: otherDog,
+      otherOwner: otherOwner,
+      lastMessage: lastMessage ?? this.lastMessage,
+      unreadCount: unreadCount ?? this.unreadCount,
+    );
+  }
 
   @override
   List<Object?> get props =>
-      [id, createdAt, myDog, otherDog, otherOwner, lastMessage];
+      [id, createdAt, myDog, otherDog, otherOwner, lastMessage, unreadCount];
 }

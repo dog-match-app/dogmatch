@@ -31,4 +31,11 @@ class MatchRepositoryImpl implements MatchRepository {
     }
     return null;
   }
+
+  @override
+  Future<void> markRead(String matchId) {
+    return guardApi(() async {
+      await _dio.post<void>('/matches/$matchId/read');
+    });
+  }
 }

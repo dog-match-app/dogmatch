@@ -31,6 +31,7 @@ MatchModel _$MatchModelFromJson(Map<String, dynamic> json) => MatchModel(
   lastMessage: json['lastMessage'] == null
       ? null
       : MessageModel.fromJson(json['lastMessage'] as Map<String, dynamic>),
+  unreadCount: (json['unreadCount'] as num?)?.toInt() ?? 0,
 );
 
 Map<String, dynamic> _$MatchModelToJson(MatchModel instance) =>
@@ -41,4 +42,5 @@ Map<String, dynamic> _$MatchModelToJson(MatchModel instance) =>
       'otherDog': instance.otherDog.toJson(),
       'otherOwner': instance.otherOwner.toJson(),
       'lastMessage': ?instance.lastMessage?.toJson(),
+      'unreadCount': instance.unreadCount,
     };
