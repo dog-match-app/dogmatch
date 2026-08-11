@@ -2,6 +2,9 @@
     <uses-permission android:name="android.permission.INTERNET"/>
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
+    <!-- Notificações locais (Android 13+ exige pedido em runtime; o app pede
+         uma vez por sessão no shell, após o fluxo de localização). -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
     <!-- usesCleartextTraffic: necessário em dev para falar com a API/MinIO em
          http:// (10.0.2.2). Em produção, remover ou restringir os domínios
          com um networkSecurityConfig. -->

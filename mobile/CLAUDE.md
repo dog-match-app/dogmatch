@@ -62,9 +62,23 @@ SDK em `~/development/flutter` (stable), já no PATH. Celular físico: ver `READ
 - `AuthInterceptor` faz refresh **single-flight** (Completer compartilhado; requests
   concorrentes aguardam o mesmo future; rotas `/auth/` não disparam refresh; flag
   anti-loop no retry). Não mexa sem preservar essas 4 propriedades.
-- `SocketClient` (namespace `/chat`, `auth: {token}`): evento novo = documentar no
-  ARCHITECTURE §3.7 + implementar no backend na mesma tarefa; trate reconexão
-  (re-emitir `match:join`) e dedup por id.
+- A conexão Socket.IO pertence à SESSÃO, não ao chat: `RealtimeService`
+  (`core/services/`) é o ÚNICO que chama `SocketClient.connect/disconnect/on`
+  (start no `AuthAuthenticated` via `app.dart`, stop no `SessionReset`) — um
+  connect avulso recriaria o socket e derrubaria os handlers. Ele re-emite
+  `match:join` na reconexão e entrega `match:new`/`message:new` como streams
+  tipadas com dedup por id; consumidores (ChatCubit, MatchesCubit,
+  ActivityBadgeCubit) escutam as streams, nunca o socket cru. Evento novo =
+  documentar no ARCHITECTURE §3.7 + implementar no backend na mesma tarefa.
+- Notificações locais (`flutter_local_notifications`): `AppNotificationsService`
+  (`core/services/`) tem o registro de "tela ativa" que decide NÃO notificar
+  (chat aberto suprime `message:new` daquele match; MatchDialog mostrado na
+  sessão suprime `match:new` — as páginas registram antes do `showDialog`).
+  Quem dispara é o `ActivityBadgeCubit` a partir das streams do RealtimeService
+  (match com pequeno atraso: o `match:new` do próprio swipe chega antes da
+  resposta REST que abre o dialog). Pedido de permissão: uma vez por sessão no
+  shell, SEQUENCIADO após o fluxo de localização (nunca empilhar dialogs).
+  Limitação aceita: app morto ⇒ sem socket ⇒ sem notificação (FCM é roadmap).
 - Upload de imagem: SEMPRE o fluxo presigned do `FileUploader`
   (`POST /files/presigned-upload` → PUT binário → registrar key/url na API).
 
@@ -143,13 +157,32 @@ SDK em `~/development/flutter` (stable), já no PATH. Celular físico: ver `READ
   interna da cadeia detalhe↔dono (ver seção search); entrada na cadeia usa `push`.
 
 ### matches
+- Aba com segmentos **"Matches" | "Curtidas"** (SegmentedButton; IndexedStack
+  preserva o estado). Seletor de cão ativo vale para os dois; abrir um segmento
+  chama `markMatchesSeen`/`markLikesSeen` do `ActivityBadgeCubit`.
 - `MatchesCubit` refaz fetch quando o `ActiveDogCubit` troca (stream) e no
   pull-to-refresh. Sem lastMessage → placeholder "Vocês deram match! Diga oi 🐶".
+  Não lidas: badge circular `primary` + última mensagem em negrito
+  (`MatchModel.unreadCount`); tap na linha chama `markRead(id)` (zero local,
+  sem refetch) e o `POST /matches/:id/read` fica com o ChatCubit. Com a aba
+  viva, `message:new` (chat fechado) incrementa o unread local e `match:new`
+  do cão ativo entra no topo — via streams do RealtimeService.
+- Curtidas: `LikesCubit` → `GET /swipes/received?dogId=`; "Curtir de volta"
+  reutiliza `DiscoveryRepository.swipe` (matched ⇒ MatchDialog existente ⇒
+  item sai da lista e MatchesCubit recarrega). Card tap abre
+  `/search/dogs/:id` com extra; pop com LIKE remove a curtida.
+- `ActivityBadgeCubit` (lazySingleton de sessão) alimenta o `Badge` da bottom
+  bar: Σ`unreadCount` + matches novos + curtidas novas vs `lastSeenMatches`/
+  `lastSeenLikes` (AppPreferences). Conta TODOS os cães (fetch sem `dogId`).
 
 ### chat
 - `ChatCubit` por conversa: histórico paginado por cursor (carrega mais no topo),
-  envio via socket com fallback REST quando desconectado, `message:new` com dedup
-  por id. AppBar mostra outro cão + dono.
+  envio via `RealtimeService` com fallback REST quando desconectado,
+  `message:new` com dedup por id. AppBar mostra outro cão + dono. Abrir/fechar
+  a conversa registra a tela ativa no `AppNotificationsService`
+  (`chatOpened/chatClosed`) e entra/sai do room (`joinMatch/leaveMatch`) — o
+  chat NUNCA desconecta o socket (é da sessão). Ao abrir e a cada mensagem
+  recebida do outro, `POST /matches/:id/read` em melhor esforço.
 
 ## Padrões de UI obrigatórios (vindos de feedback do dono do produto)
 

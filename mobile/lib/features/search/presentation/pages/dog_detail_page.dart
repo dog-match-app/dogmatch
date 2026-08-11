@@ -1,5 +1,6 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:dogmatch/app/di/injection.dart';
+import 'package:dogmatch/core/services/app_notifications_service.dart';
 import 'package:dogmatch/core/widgets/empty_state.dart';
 import 'package:dogmatch/core/widgets/loading_indicator.dart';
 import 'package:dogmatch/core/widgets/primary_button.dart';
@@ -80,6 +81,8 @@ class _DogDetailView extends StatelessWidget {
           if (state.pendingMatch != null) {
             final match = state.pendingMatch!;
             cubit.clearTransient();
+            // Dialog em tela ⇒ a notificação deste `match:new` é suprimida.
+            getIt<AppNotificationsService>().matchDialogShown(match.id);
             await showDialog<void>(
               context: context,
               builder: (_) => MatchDialog(match: match),

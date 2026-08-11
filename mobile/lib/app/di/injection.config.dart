@@ -15,7 +15,9 @@ import 'package:dogmatch/app/session/session_reset.dart' as _i80;
 import 'package:dogmatch/core/network/auth_session_manager.dart' as _i838;
 import 'package:dogmatch/core/network/file_uploader.dart' as _i416;
 import 'package:dogmatch/core/network/socket_client.dart' as _i989;
+import 'package:dogmatch/core/services/app_notifications_service.dart' as _i602;
 import 'package:dogmatch/core/services/location_service.dart' as _i234;
+import 'package:dogmatch/core/services/realtime_service.dart' as _i847;
 import 'package:dogmatch/core/storage/app_preferences.dart' as _i862;
 import 'package:dogmatch/core/storage/token_storage.dart' as _i478;
 import 'package:dogmatch/features/auth/data/repositories/auth_repository_impl.dart'
@@ -56,10 +58,18 @@ import 'package:dogmatch/features/dogs/presentation/cubit/dog_posts_cubit.dart'
     as _i815;
 import 'package:dogmatch/features/dogs/presentation/cubit/my_dogs_cubit.dart'
     as _i691;
+import 'package:dogmatch/features/matches/data/repositories/likes_repository_impl.dart'
+    as _i539;
 import 'package:dogmatch/features/matches/data/repositories/match_repository_impl.dart'
     as _i491;
+import 'package:dogmatch/features/matches/domain/repositories/likes_repository.dart'
+    as _i642;
 import 'package:dogmatch/features/matches/domain/repositories/match_repository.dart'
     as _i19;
+import 'package:dogmatch/features/matches/presentation/cubit/activity_badge_cubit.dart'
+    as _i67;
+import 'package:dogmatch/features/matches/presentation/cubit/likes_cubit.dart'
+    as _i896;
 import 'package:dogmatch/features/matches/presentation/cubit/matches_cubit.dart'
     as _i623;
 import 'package:dogmatch/features/owners/data/repositories/owners_repository_impl.dart'
@@ -114,8 +124,22 @@ extension GetItInjectableX on _i174.GetIt {
     gh.lazySingleton<_i234.LocationGateway>(
       () => _i234.GeolocatorLocationGateway(),
     );
+    gh.lazySingleton<_i602.NotificationsGateway>(
+      () => _i602.FlutterLocalNotificationsGateway(),
+    );
     gh.lazySingleton<_i478.TokenStorage>(
       () => _i478.TokenStorage(gh<_i558.FlutterSecureStorage>()),
+    );
+    gh.lazySingleton<_i602.AppNotificationsService>(
+      () => _i602.AppNotificationsService(gh<_i602.NotificationsGateway>()),
+      dispose: (i) => i.dispose(),
+    );
+    gh.lazySingleton<_i847.RealtimeService>(
+      () => _i847.RealtimeService(
+        gh<_i989.SocketClient>(),
+        gh<_i478.TokenStorage>(),
+      ),
+      dispose: (i) => i.dispose(),
     );
     gh.lazySingleton<_i361.Dio>(
       () => registerModule.dio(
@@ -131,6 +155,9 @@ extension GetItInjectableX on _i174.GetIt {
     );
     gh.lazySingleton<_i190.ChatRepository>(
       () => _i454.ChatRepositoryImpl(gh<_i361.Dio>()),
+    );
+    gh.lazySingleton<_i642.LikesRepository>(
+      () => _i539.LikesRepositoryImpl(gh<_i361.Dio>()),
     );
     gh.lazySingleton<_i984.SearchRepository>(
       () => _i687.SearchRepositoryImpl(gh<_i361.Dio>()),
@@ -160,6 +187,15 @@ extension GetItInjectableX on _i174.GetIt {
         gh<_i989.SocketClient>(),
       ),
     );
+    gh.lazySingleton<_i67.ActivityBadgeCubit>(
+      () => _i67.ActivityBadgeCubit(
+        gh<_i19.MatchRepository>(),
+        gh<_i642.LikesRepository>(),
+        gh<_i862.AppPreferences>(),
+        gh<_i847.RealtimeService>(),
+        gh<_i602.AppNotificationsService>(),
+      ),
+    );
     gh.lazySingleton<_i1052.DogRepository>(
       () => _i184.DogRepositoryImpl(gh<_i361.Dio>(), gh<_i416.FileUploader>()),
     );
@@ -167,15 +203,6 @@ extension GetItInjectableX on _i174.GetIt {
       () => _i302.ProfileRepositoryImpl(
         gh<_i361.Dio>(),
         gh<_i416.FileUploader>(),
-      ),
-    );
-    gh.factory<_i203.ChatCubit>(
-      () => _i203.ChatCubit(
-        gh<_i190.ChatRepository>(),
-        gh<_i19.MatchRepository>(),
-        gh<_i989.SocketClient>(),
-        gh<_i478.TokenStorage>(),
-        gh<_i190.AuthBloc>(),
       ),
     );
     gh.factory<_i967.LoginCubit>(
@@ -201,6 +228,15 @@ extension GetItInjectableX on _i174.GetIt {
     gh.lazySingleton<_i230.ActiveDogCubit>(
       () => _i230.ActiveDogCubit(gh<_i1052.DogRepository>()),
     );
+    gh.factory<_i203.ChatCubit>(
+      () => _i203.ChatCubit(
+        gh<_i190.ChatRepository>(),
+        gh<_i19.MatchRepository>(),
+        gh<_i847.RealtimeService>(),
+        gh<_i602.AppNotificationsService>(),
+        gh<_i190.AuthBloc>(),
+      ),
+    );
     gh.factory<_i832.SearchCubit>(
       () => _i832.SearchCubit(
         gh<_i984.SearchRepository>(),
@@ -208,10 +244,26 @@ extension GetItInjectableX on _i174.GetIt {
         gh<_i234.LocationService>(),
       ),
     );
+    gh.factory<_i896.LikesCubit>(
+      () => _i896.LikesCubit(
+        gh<_i642.LikesRepository>(),
+        gh<_i557.DiscoveryRepository>(),
+        gh<_i230.ActiveDogCubit>(),
+      ),
+    );
     gh.factory<_i691.MyDogsCubit>(
       () => _i691.MyDogsCubit(
         gh<_i1052.DogRepository>(),
         gh<_i230.ActiveDogCubit>(),
+      ),
+    );
+    gh.lazySingleton<_i80.SessionReset>(
+      () => _i80.SessionReset(
+        gh<_i230.ActiveDogCubit>(),
+        gh<_i234.LocationService>(),
+        gh<_i847.RealtimeService>(),
+        gh<_i67.ActivityBadgeCubit>(),
+        gh<_i602.AppNotificationsService>(),
       ),
     );
     gh.factory<_i290.DiscoveryCubit>(
@@ -222,10 +274,12 @@ extension GetItInjectableX on _i174.GetIt {
         gh<_i862.AppPreferences>(),
       ),
     );
-    gh.lazySingleton<_i80.SessionReset>(
-      () => _i80.SessionReset(
+    gh.factory<_i623.MatchesCubit>(
+      () => _i623.MatchesCubit(
+        gh<_i19.MatchRepository>(),
         gh<_i230.ActiveDogCubit>(),
-        gh<_i234.LocationService>(),
+        gh<_i847.RealtimeService>(),
+        gh<_i602.AppNotificationsService>(),
       ),
     );
     gh.factory<_i996.DogDetailCubit>(
@@ -240,12 +294,6 @@ extension GetItInjectableX on _i174.GetIt {
       () => _i417.ProfileCubit(
         gh<_i854.ProfileRepository>(),
         gh<_i234.LocationService>(),
-      ),
-    );
-    gh.factory<_i623.MatchesCubit>(
-      () => _i623.MatchesCubit(
-        gh<_i19.MatchRepository>(),
-        gh<_i230.ActiveDogCubit>(),
       ),
     );
     return this;

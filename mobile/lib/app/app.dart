@@ -1,9 +1,13 @@
+import 'dart:async';
+
 import 'package:dogmatch/app/di/injection.dart';
 import 'package:dogmatch/app/router/app_router.dart';
 import 'package:dogmatch/app/session/session_reset.dart';
 import 'package:dogmatch/app/theme/app_theme.dart';
 import 'package:dogmatch/core/services/location_service.dart';
+import 'package:dogmatch/core/services/realtime_service.dart';
 import 'package:dogmatch/features/auth/presentation/bloc/auth_bloc.dart';
+import 'package:dogmatch/features/matches/presentation/cubit/activity_badge_cubit.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -41,6 +45,10 @@ class _DogMatchAppState extends State<DogMatchApp> {
         listener: (context, state) {
           if (state is AuthAuthenticated) {
             getIt<LocationService>().startSession();
+            // Socket da sessão + badge de atividade (aba Matches): ligados
+            // uma vez por sessão; o SessionReset desliga no fim dela.
+            unawaited(getIt<RealtimeService>().start());
+            unawaited(getIt<ActivityBadgeCubit>().start());
           } else if (state is AuthUnauthenticated) {
             // Fim de sessão: limpeza central de TODO estado por-conta dos
             // singletons (cães da conta anterior, flags de localização...).

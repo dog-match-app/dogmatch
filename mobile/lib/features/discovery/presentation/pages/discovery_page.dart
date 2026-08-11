@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import 'package:dogmatch/app/di/injection.dart';
+import 'package:dogmatch/core/services/app_notifications_service.dart';
 import 'package:dogmatch/core/services/location_service.dart';
 import 'package:dogmatch/core/widgets/empty_state.dart';
 import 'package:dogmatch/core/widgets/loading_indicator.dart';
@@ -79,6 +80,9 @@ class _DiscoveryViewState extends State<_DiscoveryView> {
     final theme = Theme.of(context);
     return Scaffold(
       appBar: AppBar(
+        // Título + subtítulo alinhados à esquerda (centralizar os dois
+        // desalinha o conjunto em relação às ações da direita).
+        centerTitle: false,
         // Título com o raio atual embaixo — o valor aplicado no sheet fica
         // sempre visível ("até X km").
         title: BlocSelector<DiscoveryCubit, DiscoveryState, int>(
@@ -116,6 +120,8 @@ class _DiscoveryViewState extends State<_DiscoveryView> {
           if (state.pendingMatch != null) {
             final match = state.pendingMatch!;
             context.read<DiscoveryCubit>().clearPendingMatch();
+            // Dialog em tela ⇒ a notificação deste `match:new` é suprimida.
+            getIt<AppNotificationsService>().matchDialogShown(match.id);
             await showDialog<void>(
               context: context,
               builder: (_) => MatchDialog(match: match),
