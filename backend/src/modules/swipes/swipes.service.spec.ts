@@ -461,3 +461,83 @@ describe('SwipesService (likesReceived)', () => {
     expect(prismaMock.swipe.count).not.toHaveBeenCalled();
   });
 });
+
+describe('SwipesService (likesReceived aggregate)', () => {
+  let service: SwipesService;
+
+  const prismaMock = {
+    dog: { findUnique: jest.fn(), findMany: jest.fn() },
+    swipe: { count: jest.fn(), findMany: jest.fn() },
+    $queryRaw: jest.fn(),
+  };
+
+  const DOG_1 = 'dddddddd-0000-4000-8000-000000000004';
+  const DOG_2 = 'ffffffff-0000-4000-8000-000000000006';
+  const LIKER_DOG_ID = 'eeeeeeee-0000-4000-8000-000000000005';
+
+  beforeEach(async () => {
+    jest.clearAllMocks();
+    const owner = {
+      ...makeOwner(USER_A, 'Ana'),
+      latitude: -23.5629,
+      longitude: -46.6825,
+    };
+    prismaMock.dog.findMany.mockResolvedValue([
+      { ...makeDog(DOG_1, USER_A, 'Luna'), owner },
+      { ...makeDog(DOG_2, USER_A, 'Thor'), owner },
+    ]);
+    prismaMock.$queryRaw.mockResolvedValue([]);
+
+    const moduleRef = await Test.createTestingModule({
+      providers: [
+        SwipesService,
+        { provide: PrismaService, useValue: prismaMock },
+        { provide: EventEmitter2, useValue: { emit: jest.fn() } },
+      ],
+    }).compile();
+
+    service = moduleRef.get(SwipesService);
+  });
+
+  it('without dogId aggregates pending likes across all active dogs', async () => {
+    prismaMock.swipe.count.mockResolvedValueOnce(1).mockResolvedValueOnce(0);
+    prismaMock.swipe.findMany
+      .mockResolvedValueOnce([
+        {
+          id: 'swipe-like',
+          swiperDogId: LIKER_DOG_ID,
+          targetDogId: DOG_1,
+          action: SwipeAction.LIKE,
+          createdAt: new Date('2026-08-10T12:00:00.000Z'),
+          swiperDog: {
+            ...makeDog(LIKER_DOG_ID, USER_B, 'Rex'),
+            photos: [],
+            owner: makeOwner(USER_B, 'Bruno'),
+          },
+        },
+      ])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([]);
+
+    const result = await service.likesReceived(USER_A);
+
+    expect(prismaMock.dog.findUnique).not.toHaveBeenCalled();
+    expect(prismaMock.dog.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { ownerId: USER_A, active: true },
+      }),
+    );
+    expect(result.total).toBe(1);
+    expect(result.items).toHaveLength(1);
+    expect(result.items[0].dog.id).toBe(LIKER_DOG_ID);
+  });
+
+  it('without dogId and no dogs returns an empty page', async () => {
+    prismaMock.dog.findMany.mockResolvedValue([]);
+
+    const result = await service.likesReceived(USER_A);
+
+    expect(result).toEqual({ items: [], total: 0 });
+    expect(prismaMock.swipe.count).not.toHaveBeenCalled();
+  });
+});

@@ -148,19 +148,49 @@ export class SwipesService {
 
   async likesReceived(
     userId: string,
-    dogId: string,
+    dogId?: string,
   ): Promise<LikesReceivedDto> {
-    const dog = await this.prisma.dog.findUnique({
-      where: { id: dogId },
-      include: { owner: true },
-    });
-    if (!dog) {
-      throw new NotFoundException('Dog not found');
+    let dogs: Array<Prisma.DogGetPayload<{ include: { owner: true } }>>;
+    if (dogId) {
+      const dog = await this.prisma.dog.findUnique({
+        where: { id: dogId },
+        include: { owner: true },
+      });
+      if (!dog) {
+        throw new NotFoundException('Dog not found');
+      }
+      if (dog.ownerId !== userId) {
+        throw new ForbiddenException('You do not own this dog');
+      }
+      dogs = [dog];
+    } else {
+      dogs = await this.prisma.dog.findMany({
+        where: { ownerId: userId, active: true },
+        include: { owner: true },
+      });
     }
-    if (dog.ownerId !== userId) {
-      throw new ForbiddenException('You do not own this dog');
+    if (dogs.length === 0) {
+      return { items: [], total: 0 };
     }
 
+    const results = await Promise.all(
+      dogs.map((dog) => this.likesReceivedForDog(userId, dog)),
+    );
+    const items = results
+      .flatMap((result) => result.items)
+      .sort((a, b) => b.likedAt.localeCompare(a.likedAt))
+      .slice(0, LIKES_RECEIVED_TAKE);
+    return {
+      items,
+      total: results.reduce((sum, result) => sum + result.total, 0),
+    };
+  }
+
+  private async likesReceivedForDog(
+    userId: string,
+    dog: Prisma.DogGetPayload<{ include: { owner: true } }>,
+  ): Promise<LikesReceivedDto> {
+    const dogId = dog.id;
     // Pending like = LIKE toward this dog with no reciprocal LIKE from it and
     // no match for the pair. A PASS of mine must NOT hide the entry (the app
     // offers to revert it) — only a reciprocal LIKE excludes the liker.

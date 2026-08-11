@@ -338,7 +338,7 @@ OwnerProfileDto { id, name, bio?, avatarUrl?, city?, memberSince,
 | GET | `/discovery` | ✔ | `?dogId=&radiusKm=50&limit=20` | `DiscoveryCardDto[]` |
 | GET | `/discovery/search` | ✔ | filtros do §3.5.1 | `SearchResultDto` |
 | POST | `/swipes` | ✔ | `{ swiperDogId, targetDogId, action: 'LIKE'\|'PASS' }` | `SwipeResultDto` |
-| GET | `/swipes/received` | ✔ (dono) | `?dogId=` — likes recebidos pelo cão **sem** like recíproco e **sem** match; inclui os que você passou (`myAction: 'PASS'`, reversível); ordem `likedAt desc` | `LikesReceivedDto` |
+| GET | `/swipes/received` | ✔ (dono) | `?dogId=` opcional — likes recebidos **sem** like recíproco e **sem** match; inclui os que você passou (`myAction: 'PASS'`, reversível); ordem `likedAt desc`; **sem `dogId`, agrega todos os cães ativos do usuário** (uso do badge) | `LikesReceivedDto` |
 | POST | `/matches/:id/read` | ✔ (participante) | — marca como lidas as mensagens do outro | 204 |
 | GET | `/matches` | ✔ | `?dogId=` | `MatchDto[]` |
 | GET | `/matches/:id/messages` | ✔ | `?cursor=&limit=30` | `{ items: MessageDto[], nextCursor? }` |
